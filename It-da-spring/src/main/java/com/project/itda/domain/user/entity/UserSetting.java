@@ -8,7 +8,9 @@ import org.hibernate.annotations.UpdateTimestamp;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "user_settings")
+@Table(name = "user_settings", uniqueConstraints = {
+        @UniqueConstraint(name = "uk_user_setting", columnNames = {"user_id"})
+})
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor

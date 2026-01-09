@@ -1,4 +1,48 @@
 package com.project.itda.domain.social.entity;
 
+import com.project.itda.domain.social.enums.MessageType;
+import com.project.itda.domain.user.entity.User;
+import jakarta.persistence.*;
+import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
+
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name = "chat_messages")
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@AllArgsConstructor
+@Builder
 public class ChatMessage {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "message_id") // [cite: 263]
+    private Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "chat_room_id", nullable = false) // [cite: 265]
+    private ChatRoom chatRoom;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false) // [cite: 267]
+    private User sender;
+
+    @Enumerated(EnumType.STRING)
+    @Builder.Default
+    @Column(name = "message_type",nullable=false) // [cite: 270, 271]
+    private MessageType type = MessageType.TEXT;
+
+    @Column(nullable = false, columnDefinition = "TEXT") // [cite: 273, 274]
+    private String content;
+
+    @Column(name = "file_url", length = 500) // [cite: 275, 276]
+    private String fileUrl;
+
+    @Column(name = "is_read") // [cite: 278]
+    private boolean isRead = false;
+
+    @CreationTimestamp // [cite: 279]
+    @Column(name = "created_at", updatable = false) // [cite: 280]
+    private LocalDateTime createdAt; // [cite: 280]
 }

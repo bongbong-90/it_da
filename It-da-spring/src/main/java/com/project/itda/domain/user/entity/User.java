@@ -25,7 +25,8 @@ public class User {
     @Column(nullable = false, unique = true, length = 100)
     private String email;
 
-    @Column(name = "password_hash", nullable = false, length = 255)
+    //소셜 로그인 사용자를 위해 필드가 비어 있을수 있도록 설정
+    @Column(name = "password_hash", nullable = true, length = 255)
     private String passwordHash;
 
     @Column(nullable = false, length = 50)
@@ -87,5 +88,20 @@ public class User {
 
     public void updateLastLogin() {
         this.lastLoginAt = LocalDateTime.now();
+    }
+
+    @Column(name = "birth_date")
+    private java.time.LocalDate birthDate; // 명세서의 birth_date (DATE) 반영 [cite: 22, 24]
+
+    @Column(columnDefinition = "ENUM('M','F','N')")
+    private String gender; // 명세서의 gender ENUM 반영 [cite: 25, 26]
+
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt; // 명세서의 deleted_at (소프트 삭제용) 반영 [cite: 41, 42]
+
+    public User updateSocialInfo(String name, String picture) {
+        this.username = name;
+        this.profileImageUrl = picture;
+        return this;
     }
 }

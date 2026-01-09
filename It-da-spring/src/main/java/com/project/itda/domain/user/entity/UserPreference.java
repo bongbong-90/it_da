@@ -8,7 +8,12 @@ import org.hibernate.annotations.UpdateTimestamp;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "user_preferences")
+@Table(name = "user_preferences", indexes = {
+        @Index(name = "idx_energy", columnList = "energy_type"),
+        @Index(name = "idx_purpose", columnList = "purpose_type")
+}, uniqueConstraints = {
+        @UniqueConstraint(name = "uk_user_preference", columnNames = {"user_id"})
+})
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
