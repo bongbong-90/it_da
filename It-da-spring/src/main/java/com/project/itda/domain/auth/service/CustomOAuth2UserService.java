@@ -5,6 +5,7 @@ import com.project.itda.domain.auth.dto.SessionUser;
 import com.project.itda.domain.user.entity.User;
 import com.project.itda.domain.user.entity.UserPreference;
 import com.project.itda.domain.user.entity.UserSetting;
+import com.project.itda.domain.user.enums.*;
 import com.project.itda.domain.user.repository.UserRepository;
 import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
@@ -78,12 +79,12 @@ public class CustomOAuth2UserService implements OAuth2UserService<OAuth2UserRequ
     // 1. UserPreference 초기값 설정 [cite: 43, 44]
         UserPreference preference = UserPreference.builder()
                 .user(user)
-                .energyType("NONE")
-                .purposeType("NONE")
-                .frequencyType("NONE")
-                .locationType("NONE")
-                .budgetType("NONE")
-                .leadershipType("NONE")
+                .energyType(EnergyType.valueOf("NONE"))
+                .purposeType(PurposeType.valueOf("NONE"))
+                .frequencyType(FrequencyType.valueOf("NONE"))
+                .locationType(LocationType.valueOf("NONE"))
+                .budgetType(BudgetType.valueOf("NONE"))
+                .leadershipType(LeadershipType.valueOf("NONE"))
                 .timePreference("NONE")
                 .interests("[]")
                 .build();
