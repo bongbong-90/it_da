@@ -312,3 +312,42 @@
   flex-direction: column;
   gap: 12px;
 }
+
+.address-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.address-row {
+  display: flex;
+  gap: 8px;
+}
+
+.zipcode-input {
+  flex: 1;
+  background-color: #f5f5f5;
+  cursor: not-allowed;
+}
+
+.address-search-btn {
+  padding: 12px 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.address-search-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.address-search-btn:active {
+  transform: translateY(0);
+}
