@@ -131,7 +131,7 @@ public class AiRecommendationService {
                                 // 주최자 정보
                                 .organizerId(meeting.getOrganizer().getUserId())
                                 .organizerUsername(meeting.getOrganizer().getUsername())
-                                .organizerProfileImage(meeting.getOrganizer().getProfileImage())
+                                .organizerProfileImage(meeting.getOrganizer().getProfileImageUrl())
                                 .build();
                     })
                     .filter(Objects::nonNull)

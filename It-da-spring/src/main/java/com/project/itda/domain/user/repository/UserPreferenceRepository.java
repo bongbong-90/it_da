@@ -45,4 +45,11 @@ public interface UserPreferenceRepository extends JpaRepository<UserPreference, 
 
     @Query("SELECT up.energyType, COUNT(up) FROM UserPreference up GROUP BY up.energyType")
     List<Object[]> countByEnergyTypeGrouped();
+
+    /**
+     * 사용자 ID로 성향 조회
+     */
+    @Query("SELECT up FROM UserPreference up " +
+            "WHERE up.user.userId = :userId")
+    Optional<UserPreference> findByUserId(@Param("userId") Long userId);
 }

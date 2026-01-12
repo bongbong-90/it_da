@@ -1,8 +1,8 @@
 package com.project.itda.domain.ai.service;
 
 import com.project.itda.domain.ai.config.AIServiceConfig;
-import com.project.itda.domain.ai.dto.request.MeetingRecommendRequest;
-import com.project.itda.domain.ai.dto.response.MeetingRecommendResponse;
+import com.project.itda.domain.ai.dto.request.*;
+import com.project.itda.domain.ai.dto.response.*;
 import com.project.itda.domain.ai.exception.AIServiceException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,7 +19,11 @@ import org.springframework.web.client.RestTemplate;
 import java.util.Map;
 
 /**
- * FastAPI AI 서버 클라이언트 (완성)
+ * FastAPI AI 서버 클라이언트 (통합 완성)
+ * - SVD 모임 추천
+ * - LightGBM 만족도 예측
+ * - KcELECTRA 감성 분석
+ * - 중간지점 계산
  */
 @Service
 @Slf4j
@@ -135,17 +139,46 @@ public class AIServiceClient {
     }
 
     // ========================================================================
-    // TODO: Step 3~5
+    // Step 3: LightGBM 만족도 예측
     // ========================================================================
 
-    // TODO: Step 3 - LightGBM 만족도 예측
-    // public SatisfactionPredictionResponse predictSatisfaction(SatisfactionPredictionRequest request)
+    /**
+     * LightGBM Ranker 기반 만족도 예측
+     *
+     * @param request 사용자 + 모임 피처 (25개)
+     * @return 예측 만족도 (1~5)
+     */
+    public SatisfactionPredictionResponse predictSatisfaction(SatisfactionPredictionRequest request) {
+        return post("/api/ai/satisfaction-prediction", request, SatisfactionPredictionResponse.class);
+    }
 
-    // TODO: Step 4 - 중간지점 계산
-    // public PlaceRecommendResponse calculateCentroid(PlaceRecommendRequest request)
+    // ========================================================================
+    // Step 4: 중간지점 계산
+    // ========================================================================
 
-    // TODO: Step 5 - 감성 분석
-    // public SentimentAnalysisResponse analyzeSentiment(SentimentAnalysisRequest request)
+    /**
+     * 참가자들의 중간지점 계산
+     *
+     * @param request 참가자 위치 목록
+     * @return 중간지점 + 검색 반경
+     */
+    public PlaceRecommendResponse calculateCentroid(PlaceRecommendRequest request) {
+        return post("/api/ai/recommend/place", request, PlaceRecommendResponse.class);
+    }
+
+    // ========================================================================
+    // Step 5: KcELECTRA 감성 분석
+    // ========================================================================
+
+    /**
+     * KcELECTRA 기반 감성 분석
+     *
+     * @param request 분석할 텍스트
+     * @return 감성 분석 결과 (긍정/중립/부정)
+     */
+    public SentimentAnalysisResponse analyzeSentiment(SentimentAnalysisRequest request) {
+        return post("/api/ai/sentiment-analysis", request, SentimentAnalysisResponse.class);
+    }
 
     // ========================================================================
     // 헬스체크 & 모델 정보

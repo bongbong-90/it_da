@@ -1,0 +1,91 @@
+package com.project.itda.domain.review.repository;
+
+import com.project.itda.domain.review.entity.Review;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+
+import java.util.List;
+import java.util.Optional;
+
+/**
+ * 후기 레포지토리
+ */
+@Repository
+public interface ReviewRepository extends JpaRepository<Review, Long> {
+
+    /**
+     * 참여 ID로 후기 존재 여부 확인
+     */
+    boolean existsByParticipationId(Long participationId);
+
+    /**
+     * 참여 ID로 후기 조회
+     */
+    Optional<Review> findByParticipationId(Long participationId);
+
+    /**
+     * 모임 ID로 후기 목록 조회 (공개 후기만)
+     */
+    @Query("SELECT r FROM Review r " +
+            "WHERE r.meeting.meetingId = :meetingId " +
+            "AND r.isPublic = true " +
+            "AND r.deletedAt IS NULL " +
+            "ORDER BY r.createdAt DESC")
+    List<Review> findByMeetingIdAndIsPublicTrue(@Param("meetingId") Long meetingId);
+
+    /**
+     * 사용자 ID로 작성한 후기 목록 조회
+     */
+    @Query("SELECT r FROM Review r " +
+            "WHERE r.user.userId = :userId " +
+            "AND r.deletedAt IS NULL " +
+            "ORDER BY r.createdAt DESC")
+    List<Review> findByUserId(@Param("userId") Long userId);
+
+    /**
+     * 사용자의 평균 평점 조회
+     */
+    @Query("SELECT AVG(r.rating) FROM Review r " +
+            "WHERE r.user.userId = :userId " +
+            "AND r.deletedAt IS NULL")
+    Double getAvgRatingByUserId(@Param("userId") Long userId);
+
+    /**
+     * 사용자의 평점 표준편차 조회
+     */
+    @Query("SELECT STDDEV(r.rating) FROM Review r " +
+            "WHERE r.user.userId = :userId " +
+            "AND r.deletedAt IS NULL")
+    Double getRatingStdByUserId(@Param("userId") Long userId);
+
+    /**
+     * 모임의 평균 평점 조회
+     */
+    @Query("SELECT AVG(r.rating) FROM Review r " +
+            "WHERE r.meeting.meetingId = :meetingId " +
+            "AND r.deletedAt IS NULL")
+    Double getAvgRatingByMeetingId(@Param("meetingId") Long meetingId);
+
+    /**
+     * 모임의 후기 개수 조회
+     */
+    @Query("SELECT COUNT(r) FROM Review r " +
+            "WHERE r.meeting.meetingId = :meetingId " +
+            "AND r.deletedAt IS NULL")
+    Long countByMeetingId(@Param("meetingId") Long meetingId);
+
+    /**
+     * 감성 타입별 후기 개수 조회
+     */
+    @Query("SELECT COUNT(r) FROM Review r " +
+            "WHERE r.user.userId = :userId " +
+            "AND r.sentiment = :sentimentType " +
+            "AND r.deletedAt IS NULL")
+    Long countByUserIdAndSentiment(
+            @Param("userId") Long userId,
+            @Param("sentimentType") com.project.itda.domain.review.enums.SentimentType sentimentType
+    );
+}
