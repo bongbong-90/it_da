@@ -4,6 +4,13 @@ import { useAuthStore } from "@/stores/useAuthStore";
 import toast from "react-hot-toast";
 import "./SignupPage.css";
 
+// ✅ Daum 우편번호 타입 정의
+declare global {
+  interface Window {
+    daum: any;
+  }
+}
+
 const SignupPage = () => {
   const navigate = useNavigate();
   const { signup, isLoading } = useAuthStore();
@@ -15,7 +22,9 @@ const SignupPage = () => {
     password: "",
     passwordConfirm: "",
     username: "",
-    address: "",
+    address: "", // 기본 주소
+    addressDetail: "", // 상세 주소
+    zipcode: "", // 우편번호
     nickname: "",
     phone: "",
   });
@@ -32,6 +41,50 @@ const SignupPage = () => {
 
   const [timePreferences, setTimePreferences] = useState<string[]>([]);
   const [interests, setInterests] = useState<string[]>([]);
+
+  const handleAddressSearch = () => {
+    new window.daum.Postcode({
+      oncomplete: function (data: any) {
+        // 도로명 주소 또는 지번 주소
+        const addr =
+          data.userSelectedType === "R" ? data.roadAddress : data.jibunAddress;
+
+        setFormData({
+          ...formData,
+          zipcode: data.zonecode, // 우편번호
+          address: addr, // 기본 주소
+          addressDetail: "", // 상세 주소 초기화
+        });
+
+        // 상세 주소 입력란으로 포커스
+        document.getElementById("addressDetail")?.focus();
+
+        toast.success("주소가 입력되었습니다!");
+      },
+    }).open();
+  };
+
+  const handleStep1Submit = (e: FormEvent) => {
+    e.preventDefault();
+
+    if (
+      !formData.email ||
+      !formData.password ||
+      !formData.username ||
+      !formData.address
+    ) {
+      toast.error("필수 항목을 입력해주세요.");
+      return;
+    }
+
+    if (formData.password !== formData.passwordConfirm) {
+      toast.error("비밀번호가 일치하지 않습니다.");
+      return;
+    }
+
+    setStep(2);
+    setCurrentQuestion(0);
+  };
 
   const questions = [
     {
@@ -199,26 +252,46 @@ const SignupPage = () => {
     { value: "사진", emoji: "📷", title: "사진" },
   ];
 
-  const handleStep1Submit = (e: FormEvent) => {
-    e.preventDefault();
-
-    if (
-      !formData.email ||
-      !formData.password ||
-      !formData.username ||
-      !formData.address
-    ) {
-      toast.error("필수 항목을 입력해주세요.");
+  const handleFinalSubmit = async () => {
+    if (interests.length < 3) {
+      toast.error("관심 분야를 최소 3개 선택해주세요!");
       return;
     }
 
-    if (formData.password !== formData.passwordConfirm) {
-      toast.error("비밀번호가 일치하지 않습니다.");
-      return;
-    }
+    // ✅ 주소 합치기
+    const fullAddress = formData.addressDetail
+      ? `${formData.address} ${formData.addressDetail}`.trim()
+      : formData.address;
 
-    setStep(2);
-    setCurrentQuestion(0);
+    const signupData = {
+      email: formData.email,
+      password: formData.password,
+      username: formData.username,
+      address: fullAddress, // ✅ 전체 주소
+      nickname: formData.nickname || undefined,
+      phone: formData.phone || undefined,
+      preferences: {
+        energyType: preferences.energyType,
+        purposeType: preferences.purposeType,
+        frequencyType: preferences.frequencyType,
+        locationType: preferences.locationType,
+        budgetType: preferences.budgetType,
+        leadershipType: preferences.leadershipType,
+        timePreference: timePreferences.join(","),
+        interests: interests.join(","),
+      },
+    };
+
+    console.log("🚀 회원가입 데이터:", JSON.stringify(signupData, null, 2));
+
+    try {
+      await signup(signupData);
+      toast.success("회원가입 완료!");
+      navigate("/login");
+    } catch (error: any) {
+      console.error("❌ 회원가입 오류:", error);
+      toast.error(error.response?.data?.message || "회원가입에 실패했습니다.");
+    }
   };
 
   const handleOptionClick = (key: string, value: string) => {
@@ -264,44 +337,6 @@ const SignupPage = () => {
       setCurrentQuestion(currentQuestion - 1);
     } else {
       setStep(1);
-    }
-  };
-
-  const handleFinalSubmit = async () => {
-    if (interests.length < 3) {
-      toast.error("관심 분야를 최소 3개 선택해주세요!");
-      return;
-    }
-
-    // ✅ 백엔드 DTO와 100% 매칭
-    const signupData = {
-      email: formData.email,
-      password: formData.password,
-      username: formData.username,
-      address: formData.address,
-      nickname: formData.nickname || undefined,
-      phone: formData.phone || undefined,
-      preferences: {
-        energyType: preferences.energyType, // EXTROVERT, INTROVERT
-        purposeType: preferences.purposeType, // RELATIONSHIP, TASK
-        frequencyType: preferences.frequencyType, // REGULAR, SPONTANEOUS
-        locationType: preferences.locationType, // INDOOR, OUTDOOR
-        budgetType: preferences.budgetType, // VALUE, QUALITY
-        leadershipType: preferences.leadershipType, // LEADER, FOLLOWER
-        timePreference: timePreferences.join(","), // "MORNING,AFTERNOON"
-        interests: interests.join(","), // "스포츠,카페,게임"
-      },
-    };
-
-    console.log("🚀 회원가입 데이터:", JSON.stringify(signupData, null, 2));
-
-    try {
-      await signup(signupData);
-      toast.success("회원가입 완료!");
-      navigate("/login");
-    } catch (error: any) {
-      console.error("❌ 회원가입 오류:", error);
-      toast.error(error.response?.data?.message || "회원가입에 실패했습니다.");
     }
   };
 
@@ -371,16 +406,45 @@ const SignupPage = () => {
                 className="form-input"
                 required
               />
-              <input
-                type="text"
-                placeholder="주소"
-                value={formData.address}
-                onChange={(e) =>
-                  setFormData({ ...formData, address: e.target.value })
-                }
-                className="form-input"
-                required
-              />
+
+              {/* ✅ 주소 검색 */}
+              <div className="address-group">
+                <div className="address-row">
+                  <input
+                    type="text"
+                    placeholder="우편번호"
+                    value={formData.zipcode}
+                    className="form-input zipcode-input"
+                    readOnly
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddressSearch}
+                    className="address-search-btn"
+                  >
+                    주소 검색
+                  </button>
+                </div>
+                <input
+                  type="text"
+                  placeholder="주소"
+                  value={formData.address}
+                  className="form-input"
+                  readOnly
+                  required
+                />
+                <input
+                  id="addressDetail"
+                  type="text"
+                  placeholder="상세 주소 (선택)"
+                  value={formData.addressDetail}
+                  onChange={(e) =>
+                    setFormData({ ...formData, addressDetail: e.target.value })
+                  }
+                  className="form-input"
+                />
+              </div>
+
               <input
                 type="text"
                 placeholder="닉네임 (선택)"

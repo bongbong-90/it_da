@@ -1,16 +1,21 @@
 package com.project.itda.domain.user.dto.request;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import lombok.Getter;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
 import lombok.NoArgsConstructor;
 
-@Getter
+@Data
+@Builder
 @NoArgsConstructor
+@AllArgsConstructor
 public class UserSignupRequest {
 
     @NotBlank(message = "이메일은 필수입니다")
-    @Email(message = "이메일 형식이 올바르지 않습니다")
+    @Email(message = "올바른 이메일 형식이 아닙니다")
     private String email;
 
     @NotBlank(message = "비밀번호는 필수입니다")
@@ -23,10 +28,8 @@ public class UserSignupRequest {
     private String address;
 
     private String nickname;
-
     private String phone;
 
-
-    // ✅ 선호도 정보 추가
+    @Valid  // ✅ 중첩 객체 검증
     private UserPreferenceRequest preferences;
 }

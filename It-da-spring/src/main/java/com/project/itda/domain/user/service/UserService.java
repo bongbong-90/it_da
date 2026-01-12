@@ -32,14 +32,17 @@ public class UserService {
 
     @Transactional
     public UserResponse signup(UserSignupRequest request) {
+        log.info("=== 회원가입 시작 ===");
+        log.info("요청 데이터: {}", request);
+
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new IllegalArgumentException("이미 존재하는 이메일입니다");
         }
 
-        // User 생성 (Entity에 있는 필드만!)
+        // 1. User 생성
         User user = User.builder()
                 .email(request.getEmail())
-                .passwordHash(request.getPassword())  // ✅ password → passwordHash
+                .passwordHash(request.getPassword())
                 .username(request.getUsername())
                 .address(request.getAddress())
                 .nickname(request.getNickname())
@@ -48,12 +51,32 @@ public class UserService {
                 .build();
 
         User savedUser = userRepository.save(user);
+        log.info("✅ User 저장 완료: userId={}", savedUser.getUserId());
 
-        // 3. 선호도 저장 (있으면)
+        // 2. 선호도 저장
         if (request.getPreferences() != null) {
             UserPreferenceRequest pref = request.getPreferences();
 
+            // ✅ 디버깅 로그 추가
+            log.info("=== 선호도 데이터 ===");
+            log.info("energyType: {}", pref.getEnergyType());
+            log.info("purposeType: {}", pref.getPurposeType());
+            log.info("frequencyType: {}", pref.getFrequencyType());
+            log.info("locationType: {}", pref.getLocationType());
+            log.info("budgetType: {}", pref.getBudgetType());
+            log.info("leadershipType: {}", pref.getLeadershipType());
+            log.info("timePreference: {}", pref.getTimePreference());
+            log.info("interests: {}", pref.getInterests());
+
             try {
+                // ✅ NULL 체크 추가
+                if (pref.getEnergyType() == null || pref.getEnergyType().isEmpty()) {
+                    throw new IllegalArgumentException("energyType이 비어있습니다");
+                }
+                if (pref.getPurposeType() == null || pref.getPurposeType().isEmpty()) {
+                    throw new IllegalArgumentException("purposeType이 비어있습니다");
+                }
+
                 UserPreference preference = UserPreference.builder()
                         .user(savedUser)
                         .energyType(EnergyType.valueOf(pref.getEnergyType()))
@@ -62,26 +85,30 @@ public class UserService {
                         .locationType(LocationType.valueOf(pref.getLocationType()))
                         .budgetType(BudgetType.valueOf(pref.getBudgetType()))
                         .leadershipType(LeadershipType.valueOf(pref.getLeadershipType()))
-                        .timePreference(pref.getTimePreference())  // ✅ String 그대로 저장!
+                        .timePreference(pref.getTimePreference())
                         .interests(pref.getInterests())
                         .build();
 
                 userPreferenceRepository.save(preference);
+                log.info("✅ UserPreference 저장 완료");
 
             } catch (IllegalArgumentException e) {
-                log.error("선호도 Enum 변환 실패: {}", e.getMessage());
-                // 사용자는 이미 저장됐으니 롤백 안 함
+                log.error("❌ 선호도 Enum 변환 실패: {}", e.getMessage());
                 throw new IllegalArgumentException("잘못된 선호도 값입니다: " + e.getMessage());
             }
+        } else {
+            log.warn("⚠️ preferences가 NULL입니다!");
         }
 
-        // 기본 UserSetting 생성
+        // 3. UserSetting 생성
         UserSetting setting = UserSetting.builder()
-                .user(user)
+                .user(savedUser)
                 .build();
         userSettingRepository.save(setting);
+        log.info("✅ UserSetting 저장 완료");
 
-        return UserResponse.from(user);
+        log.info("=== 회원가입 완료 ===");
+        return UserResponse.from(savedUser);
     }
 
     public UserDetailResponse getUserDetail(Long userId) {
