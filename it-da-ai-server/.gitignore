@@ -1,0 +1,5 @@
+it-da-ai-server/data/nsmc/ratings_train_augmented.txt
+it-da-ai-server/data/nsmc/ratings_train.txt
+
+data/nsmc/*.txt
+*.txt

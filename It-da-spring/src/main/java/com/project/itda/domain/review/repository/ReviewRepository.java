@@ -2,7 +2,6 @@ package com.project.itda.domain.review.repository;
 
 import com.project.itda.domain.review.entity.Review;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -18,13 +17,17 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
 
     /**
      * 참여 ID로 후기 존재 여부 확인
+     * ✅ @Query 추가!
      */
-    boolean existsByParticipationId(Long participationId);
+    @Query("SELECT CASE WHEN COUNT(r) > 0 THEN true ELSE false END " +
+            "FROM Review r WHERE r.participation.participationId = :participationId")
+    boolean existsByParticipationId(@Param("participationId") Long participationId);
 
     /**
      * 참여 ID로 후기 조회
      */
-    Optional<Review> findByParticipationId(Long participationId);
+    @Query("SELECT r FROM Review r WHERE r.participation.participationId = :participationId")
+    Optional<Review> findByParticipationId(@Param("participationId") Long participationId);
 
     /**
      * 모임 ID로 후기 목록 조회 (공개 후기만)
@@ -44,6 +47,16 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
             "AND r.deletedAt IS NULL " +
             "ORDER BY r.createdAt DESC")
     List<Review> findByUserId(@Param("userId") Long userId);
+
+    /**
+     * 사용자 ID로 리뷰 조회 (AI 추천용)
+     */
+    List<Review> findByUser_UserId(Long userId);
+
+    /**
+     * 모임 ID로 리뷰 조회
+     */
+    List<Review> findByMeeting_MeetingId(Long meetingId);
 
     /**
      * 사용자의 평균 평점 조회

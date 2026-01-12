@@ -21,3 +21,4 @@ it-da-ai-server/models/
 it-da-ai-server/data/synthetic_interactions_nationwide.csv
 it-da-ai-server/data/synthetic_meetings_nationwide.csv
 it-da-ai-server/data/synthetic_users_nationwide.csv
+data/nsmc/*.txt

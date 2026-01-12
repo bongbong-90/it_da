@@ -16,6 +16,10 @@ import java.util.Optional;
 @Repository
 public interface ParticipationRepository extends JpaRepository<Participation, Long> {
 
+    // ========================================
+    // 사용자 + 모임 조회
+    // ========================================
+
     /**
      * 사용자 ID + 모임 ID로 참여 정보 조회
      */
@@ -39,6 +43,10 @@ public interface ParticipationRepository extends JpaRepository<Participation, Lo
             @Param("meetingId") Long meetingId
     );
 
+    // ========================================
+    // 모임 기준 조회
+    // ========================================
+
     /**
      * 모임 ID + 상태로 참여자 목록 조회
      */
@@ -58,6 +66,21 @@ public interface ParticipationRepository extends JpaRepository<Participation, Lo
             "WHERE p.meeting.meetingId = :meetingId " +
             "ORDER BY p.appliedAt DESC")
     List<Participation> findByMeetingId(@Param("meetingId") Long meetingId);
+
+    /**
+     * 모임의 특정 상태 참여 개수
+     */
+    @Query("SELECT COUNT(p) FROM Participation p " +
+            "WHERE p.meeting.meetingId = :meetingId " +
+            "AND p.status = :status")
+    Long countByMeetingIdAndStatus(
+            @Param("meetingId") Long meetingId,
+            @Param("status") ParticipationStatus status
+    );
+
+    // ========================================
+    // 사용자 기준 조회
+    // ========================================
 
     /**
      * 사용자의 참여 목록 조회 (특정 상태)
@@ -90,14 +113,27 @@ public interface ParticipationRepository extends JpaRepository<Participation, Lo
             @Param("status") ParticipationStatus status
     );
 
+    // ========================================
+    // AI 추천용 메서드 추가
+    // ========================================
+
     /**
-     * 모임의 특정 상태 참여 개수
+     * 사용자가 승인된 모든 참여 목록 조회 (AI 추천용)
+     * APPROVED 상태만 조회
      */
-    @Query("SELECT COUNT(p) FROM Participation p " +
-            "WHERE p.meeting.meetingId = :meetingId " +
-            "AND p.status = :status")
-    Long countByMeetingIdAndStatus(
-            @Param("meetingId") Long meetingId,
-            @Param("status") ParticipationStatus status
-    );
+    @Query("SELECT p FROM Participation p " +
+            "WHERE p.user.userId = :userId " +
+            "AND p.status = 'APPROVED' " +
+            "ORDER BY p.appliedAt DESC")
+    List<Participation> findApprovedParticipationsByUserId(@Param("userId") Long userId);
+
+    /**
+     * 사용자가 참여 완료한 모임 목록 (리뷰 작성 가능한 모임)
+     * COMPLETED 상태
+     */
+    @Query("SELECT p FROM Participation p " +
+            "WHERE p.user.userId = :userId " +
+            "AND p.status = 'COMPLETED' " +
+            "ORDER BY p.appliedAt DESC")
+    List<Participation> findCompletedParticipationsByUserId(@Param("userId") Long userId);
 }

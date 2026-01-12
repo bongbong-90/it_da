@@ -1,0 +1,20 @@
+# FastAPI & Server
+fastapi
+uvicorn[standard]
+pydantic
+python-multipart
+
+# AI/ML
+torch
+transformers
+scikit-learn
+lightgbm
+numpy
+pandas
+
+# HTTP Client
+httpx
+requests
+
+# Utils
+python-dotenv
