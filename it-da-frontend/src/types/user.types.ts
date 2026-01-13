@@ -16,6 +16,7 @@ export interface User {
   id: number;
   email: string;
   name: string;
+  role?: "LEADER" | "MEMBER" | "ME";
   nickname?: string;
   phoneNumber?: string;
   birthDate?: string;
