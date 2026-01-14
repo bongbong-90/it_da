@@ -209,7 +209,7 @@ model.fit(
 # ========================================
 
 print("\n모델 저장...")
-with open('models/lightgbm_ranker.pkl', 'wb') as f:
+with open('models/lightgbm_model.pkl', 'wb') as f:
     pickle.dump(model, f)
 
 print("✅ 모델 저장 완료: models/lightgbm_ranker.pkl")

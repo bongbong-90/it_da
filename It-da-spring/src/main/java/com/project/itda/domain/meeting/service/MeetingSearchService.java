@@ -156,13 +156,33 @@ public class MeetingSearchService {
      */
     private List<Meeting> applyFilters(List<Meeting> meetings, MeetingSearchRequest request) {
         return meetings.stream()
+                .filter(m -> request.getCategory() == null || m.getCategory().equals(request.getCategory()))
                 .filter(m -> request.getSubcategory() == null || m.getSubcategory().equals(request.getSubcategory()))
                 .filter(m -> request.getLocationType() == null || m.getLocationType().name().equalsIgnoreCase(request.getLocationType()))
                 .filter(m -> request.getVibe() == null || m.getVibe().equals(request.getVibe()))
                 .filter(m -> request.getTimeSlot() == null || m.getTimeSlot().name().equalsIgnoreCase(request.getTimeSlot()))
                 .filter(m -> request.getStatus() == null || m.getStatus().name().equalsIgnoreCase(request.getStatus()))
+                .filter(m -> matchesKeywordOrTokens(m, request.getKeyword()))
                 .collect(Collectors.toList());
     }
+
+    private boolean matchesKeywordOrTokens(Meeting m, String keyword) {
+        if (keyword == null || keyword.isBlank()) return true;
+
+        String hay = (m.getTitle() + " " +
+                m.getDescription() + " " +
+                m.getLocationName() + " " +
+                m.getLocationAddress())
+                .toLowerCase();
+
+        for (String tok : keyword.toLowerCase().split("\\s+")) {
+            if (tok.isBlank()) continue;
+            if (hay.contains(tok)) return true; // OR 매칭
+        }
+        return false;
+    }
+
+
 
     /**
      * Meeting → MeetingResponse 변환

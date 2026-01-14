@@ -1,10 +1,33 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useAuthStore } from "@/stores/useAuthStore";
 import "./AIMatchingPage.css";
 
 interface KeyPoint {
   text: string;
+}
+
+interface SearchTraceStep {
+  level: number;
+  label: string;
+  payload: any;
+  count: number;
+}
+
+interface SearchTrace {
+  steps: SearchTraceStep[];
+  final_level: number;
+  final_label: string;
+  fallback: boolean;
+}
+
+interface AISearchResult {
+  user_prompt: string;
+  parsed_query: any;
+  total_candidates: number;
+  recommendations: Recommendation[];
+  fallback?: boolean;
+  search_trace?: SearchTrace; // ✅ 추가
 }
 
 interface Recommendation {
@@ -43,6 +66,7 @@ const AIMatchingPage = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user } = useAuthStore();
+  const requestedRef = useRef<string>("");
 
   // ✅ 디버깅 로그
   console.log("🔵 AIMatchingPage 렌더링");
@@ -55,49 +79,47 @@ const AIMatchingPage = () => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showFullReasoning, setShowFullReasoning] = useState(false);
 
+  const q = searchParams.get("q") ?? "";
+
   useEffect(() => {
-    const query = searchParams.get("q");
-    if (!query) {
-      console.log("❌ 검색어 없음, 홈으로 리다이렉트");
+    if (!q) {
       navigate("/");
       return;
     }
+    if (requestedRef.current === q) return;
+    requestedRef.current = q;
 
-    console.log("✅ 검색 시작:", query);
+    const controller = new AbortController();
+    fetchAIRecommendations(q, controller.signal);
 
-    // ✅ user 체크 제거하고 일단 실행
-    fetchAIRecommendations(query);
-  }, [searchParams]); // user 의존성 제거
+    return () => controller.abort(); // ✅ 화면 이동/리렌더 시 이전 요청 끊기
+  }, [q]);
 
-  const fetchAIRecommendations = async (userPrompt: string) => {
+  const fetchAIRecommendations = async (
+    userPrompt: string,
+    signal?: AbortSignal
+  ) => {
     setLoading(true);
     try {
       const response = await fetch(
         "http://localhost:8000/api/ai/recommendations/search",
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
+          signal,
           body: JSON.stringify({
             user_prompt: userPrompt,
-            user_id: user?.userId || 1, // ✅ user 없으면 기본값 1
+            user_id: user?.userId || 1,
             top_n: 5,
           }),
         }
       );
-
-      if (!response.ok) {
-        throw new Error("AI 검색 실패");
-      }
-
-      const data: AISearchResult = await response.json();
-      console.log("✅ AI 검색 결과:", data);
+      if (!response.ok) throw new Error("AI 검색 실패");
+      const data = await response.json();
       setSearchResult(data);
-    } catch (error) {
-      console.error("❌ AI 검색 에러:", error);
-      alert("AI 검색 중 오류가 발생했습니다.");
-      // navigate('/'); // ✅ 에러 시 홈 이동도 제거
+    } catch (e: any) {
+      if (e?.name === "AbortError") return;
+      console.error(e);
     } finally {
       setLoading(false);
     }
@@ -155,6 +177,12 @@ const AIMatchingPage = () => {
 
   const currentMeeting = searchResult.recommendations[currentIndex];
 
+  const meetingTime = currentMeeting.meeting_time;
+  const meetingDateText =
+    meetingTime && !isNaN(new Date(meetingTime).getTime())
+      ? new Date(meetingTime).toLocaleString("ko-KR")
+      : "시간 미정";
+
   return (
     <div className="ai-matching-page">
       {/* 헤더 */}
@@ -165,11 +193,34 @@ const AIMatchingPage = () => {
         <h1>AI 추천 결과</h1>
       </div>
 
+      {/* ✅ confidence 낮을 때 경고 (여기에 추가!) */}
+      {searchResult.parsed_query?.confidence < 0.6 && (
+        <div className="low-confidence-notice">
+          <p>🤔 검색어가 애매해서 정확한 추천이 어려울 수 있어요.</p>
+          <p>더 구체적으로 검색해보시겠어요?</p>
+          <button onClick={() => navigate("/")}>다시 검색하기</button>
+        </div>
+      )}
+
       {/* 성공 배너 */}
-      <div className="success-banner">
-        <h2>🎉 딱 맞는 모임을 찾았어요!</h2>
-        <p>{searchResult.recommendations.length}개의 추천 모임</p>
-      </div>
+      {searchResult.search_trace && (
+        <div className="relax-banner">
+          {searchResult.search_trace.fallback ? (
+            <>
+              <b>🔁 검색 결과가 없어</b> 과거 취향(SVD) 기반으로 추천했어요.
+            </>
+          ) : searchResult.search_trace.final_level > 0 ? (
+            <>
+              <b>🔎 조건을 조금 완화해서</b> 찾았어요:{" "}
+              {searchResult.search_trace.final_label}
+            </>
+          ) : (
+            <>
+              <b>✅ 요청 조건 그대로</b> 찾았어요.
+            </>
+          )}
+        </div>
+      )}
 
       {/* 사용자 요청 */}
       <div className="user-request">
@@ -212,7 +263,7 @@ const AIMatchingPage = () => {
           <div className="meeting-info">
             <div className="info-row">
               <span className="info-icon">📅</span>
-              {new Date(currentMeeting.meeting_time).toLocaleString("ko-KR")}
+              {meetingDateText}
             </div>
             <div className="info-row">
               <span className="info-icon">📍</span>

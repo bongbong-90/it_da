@@ -1,6 +1,6 @@
-import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
-import axios from 'axios';
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
+import axios from "axios";
 
 interface Meeting {
   meetingId: number;
@@ -24,7 +24,7 @@ interface RecentItem {
   icon: string;
   title: string;
   time: string;
-  type: 'chat' | 'meeting';
+  type: "chat" | "meeting";
 }
 
 interface MeetingStore {
@@ -45,7 +45,24 @@ interface MeetingStore {
   searchMeetings: (query: string) => Promise<void>;
 }
 
-const API_BASE_URL = 'http://localhost:8080/api';
+const API_BASE_URL = "http://localhost:8080/api";
+
+const normalizeMeeting = (m: any) => ({
+  meetingId: m.meetingId ?? m.meeting_id,
+  title: m.title,
+  description: m.description,
+  category: m.category,
+  subcategory: m.subcategory,
+  locationName: m.locationName ?? m.location_name,
+  meetingTime: m.meetingTime ?? m.meeting_time,
+  maxParticipants: m.maxParticipants ?? m.max_participants,
+  currentParticipants: m.currentParticipants ?? m.current_participants,
+  expectedCost: m.expectedCost ?? m.expected_cost,
+  vibe: m.vibe,
+  imageUrl: m.imageUrl ?? m.image_url,
+  avgRating: m.avgRating ?? m.avg_rating,
+  organizerId: m.organizerId ?? m.organizer?.user_id ?? m.organizer?.userId,
+});
 
 export const useMeetingStore = create<MeetingStore>()(
   persist(
@@ -54,8 +71,8 @@ export const useMeetingStore = create<MeetingStore>()(
       meetings: [],
       recentItems: [],
       aiRecommendation: null,
-      selectedCategory: '전체',
-      searchQuery: '',
+      selectedCategory: "전체",
+      searchQuery: "",
       isLoading: false,
 
       // Fetch all meetings
@@ -63,20 +80,27 @@ export const useMeetingStore = create<MeetingStore>()(
         set({ isLoading: true });
         try {
           const response = await axios.get(`${API_BASE_URL}/meetings`);
-          
+
           // ✅ Spring Boot 응답 구조 처리
           // { success, message, meetings: [...], totalCount }
           const meetingsData = response.data.meetings || response.data || [];
-          
-          console.log('📦 API Response:', response.data);
-          console.log('✅ Meetings 추출:', meetingsData);
-          
-          set({ 
+
+          set({
+            meetings: Array.isArray(meetingsData)
+              ? meetingsData.map(normalizeMeeting)
+              : [],
+            isLoading: false,
+          });
+
+          console.log("📦 API Response:", response.data);
+          console.log("✅ Meetings 추출:", meetingsData);
+
+          set({
             meetings: Array.isArray(meetingsData) ? meetingsData : [],
-            isLoading: false 
+            isLoading: false,
           });
         } catch (error) {
-          console.error('❌ 모임 조회 실패:', error);
+          console.error("❌ 모임 조회 실패:", error);
           set({ meetings: [], isLoading: false });
         }
       },
@@ -86,33 +110,77 @@ export const useMeetingStore = create<MeetingStore>()(
         try {
           // TODO: 실제 API 연동
           const mockData: RecentItem[] = [
-            { id: 1, icon: '🌅', title: '한강 선셋 피크닉', time: '2시간 전', type: 'chat' },
-            { id: 2, icon: '🏃', title: '주말 등산 모임', time: '어제', type: 'chat' },
-            { id: 3, icon: '📚', title: '독서 토론회', time: '3일 전', type: 'meeting' },
-            { id: 4, icon: '🎨', title: '수채화 그리기', time: '1주일 전', type: 'meeting' },
+            {
+              id: 1,
+              icon: "🌅",
+              title: "한강 선셋 피크닉",
+              time: "2시간 전",
+              type: "chat",
+            },
+            {
+              id: 2,
+              icon: "🏃",
+              title: "주말 등산 모임",
+              time: "어제",
+              type: "chat",
+            },
+            {
+              id: 3,
+              icon: "📚",
+              title: "독서 토론회",
+              time: "3일 전",
+              type: "meeting",
+            },
+            {
+              id: 4,
+              icon: "🎨",
+              title: "수채화 그리기",
+              time: "1주일 전",
+              type: "meeting",
+            },
           ];
           set({ recentItems: mockData });
         } catch (error) {
-          console.error('❌ 최근 항목 조회 실패:', error);
+          console.error("❌ 최근 항목 조회 실패:", error);
         }
       },
 
-      // Fetch AI recommendation
       fetchAIRecommendation: async (userId: number) => {
         try {
           const response = await axios.get(
-            `${API_BASE_URL}/ai/recommendations/meetings?user_id=${userId}&top_n=1`
+            `${API_BASE_URL}/ai/recommendations/meetings`,
+            { params: { user_id: userId, top_n: 1 } }
           );
-          
-          if (response.data.recommended_meetings.length > 0) {
-            const recommendedId = response.data.recommended_meetings[0].meeting_id;
-            
-            // 모임 상세 정보 조회
-            const meetingResponse = await axios.get(`${API_BASE_URL}/meetings/${recommendedId}`);
-            set({ aiRecommendation: meetingResponse.data });
+
+          // ✅ 백단 키 변경 대응 (recommendations or recommended_meetings)
+          const recs =
+            response.data?.recommendations ??
+            response.data?.recommended_meetings ??
+            [];
+
+          if (!Array.isArray(recs) || recs.length === 0) {
+            set({ aiRecommendation: null });
+            return;
           }
+
+          // ✅ rec 구조도 두 가지 대응 (score / predicted_score)
+          const recommendedId =
+            recs[0].meeting_id ?? recs[0].meetingId ?? recs[0].id;
+
+          if (!recommendedId) {
+            set({ aiRecommendation: null });
+            return;
+          }
+
+          const meetingResponse = await axios.get(
+            `${API_BASE_URL}/meetings/${recommendedId}`
+          );
+
+          // Spring 응답 구조 대응 필요하면 여기서도 data.meeting 등 처리
+          set({ aiRecommendation: meetingResponse.data });
         } catch (error) {
-          console.error('❌ AI 추천 조회 실패:', error);
+          console.error("❌ AI 추천 조회 실패:", error);
+          set({ aiRecommendation: null });
         }
       },
 
@@ -130,28 +198,29 @@ export const useMeetingStore = create<MeetingStore>()(
       searchMeetings: async (query: string) => {
         set({ isLoading: true, searchQuery: query });
         try {
-          const response = await axios.get(`${API_BASE_URL}/meetings/search`, {
-            params: { keyword: query }
+          const response = await axios.post(`${API_BASE_URL}/meetings/search`, {
+            keyword: query,
+            page: 0,
+            size: 50,
           });
-          
-          // ✅ 검색 결과도 동일하게 처리
-          const meetingsData = response.data.meetings || response.data || [];
-          
-          set({ 
+
+          const meetingsData = response.data.meetings || [];
+          set({
             meetings: Array.isArray(meetingsData) ? meetingsData : [],
-            isLoading: false 
+            isLoading: false,
           });
         } catch (error) {
-          console.error('❌ 모임 검색 실패:', error);
+          console.error("❌ 모임 검색 실패:", error);
           set({ meetings: [], isLoading: false });
         }
       },
     }),
+
     {
-      name: 'meeting-storage', // localStorage key
-      partialize: (state) => ({ 
+      name: "meeting-storage", // localStorage key
+      partialize: (state) => ({
         recentItems: state.recentItems,
-        selectedCategory: state.selectedCategory 
+        selectedCategory: state.selectedCategory,
       }),
     }
   )

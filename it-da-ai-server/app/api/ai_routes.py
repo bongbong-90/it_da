@@ -12,6 +12,7 @@ from app.schemas.ai_schemas import AISearchRequest, AISearchResponse
 from app.services.gpt_prompt_service import GPTPromptService
 from app.services.AIRecommendationService import AIRecommendationService
 import math
+import uuid
 import os
 
 router = APIRouter(prefix="/api/ai/recommendations", tags=["AI"])
@@ -194,6 +195,49 @@ async def health_check():
     }
 
 
+@router.get("/meetings")
+async def recommend_meetings(user_id: int, top_n: int = 10):
+    try:
+        logger.info(f"🤖 AI 추천 요청: user_id={user_id}, top_n={top_n}")
+
+        if not model_loader.svd or not model_loader.svd.is_loaded():
+            logger.error("❌ SVD 모델이 로드되지 않았습니다")
+            raise HTTPException(status_code=503, detail="SVD 모델이 로드되지 않았습니다")
+
+        if top_n > 50:
+            top_n = 50
+
+        recommendations = await model_loader.svd.recommend(user_id=user_id, top_n=top_n)
+        logger.info(f"✅ SVD 추천 완료: {len(recommendations)}개")
+
+        # Spring DTO(RecommendedMeeting.score) 에 맞추기: score 키로!
+        rec_list = [
+            {
+                "meeting_id": int(meeting_id),
+                "score": round(float(score), 4),   # ✅ predicted_score -> score
+                "rank": idx + 1
+            }
+            for idx, (meeting_id, score) in enumerate(recommendations)
+        ]
+
+        return {
+            "success": True,                 # ✅ 추가 (NPE 방지 + 의미 맞음)
+            "user_id": user_id,
+            "recommendations": rec_list,     # ✅ recommended_meetings -> recommendations
+            "model_info": {                  # ✅ 있으면 좋음. 없으면 null로라도
+                "rmse": None,
+                "mae": None,
+                "accuracy": None
+            }
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ 추천 실패: {str(e)}", exc_info=True)
+        # 실패 응답도 success 넣어주면 Spring이 안정적
+        raise HTTPException(status_code=500, detail=f"추천 실패: {str(e)}")
+
 @router.get("/models")
 async def get_models_info():
     """
@@ -216,47 +260,6 @@ async def get_models_info():
             "device": model_loader.kcelectra.device if model_loader.kcelectra else "unknown"
         } if model_loader.kcelectra else {}
     }
-
-
-@router.get("/meetings")
-async def recommend_meetings(user_id: int, top_n: int = 10):
-    """
-    SVD 협업 필터링 모임 추천 (실시간 DB 연동)
-    GET /api/ai/recommendations/meetings?userId=3&topN=10
-    """
-    try:
-        if not model_loader.svd or not model_loader.svd.is_loaded():
-            raise HTTPException(status_code=503, detail="SVD 모델이 로드되지 않았습니다")
-
-        # topN 제한
-        if top_n > 50:
-            top_n = 50
-
-        # SVD 추천 (실시간 DB 조회)
-        recommendations = await model_loader.svd.recommend(
-            user_id=user_id,
-            top_n=top_n
-        )
-
-        # 응답 생성
-        recommended_meetings = [
-            {
-                "meeting_id": int(meeting_id),
-                "predicted_score": round(float(score), 4),
-                "rank": idx + 1
-            }
-            for idx, (meeting_id, score) in enumerate(recommendations)
-        ]
-
-        return {
-            "user_id": user_id,
-            "recommended_meetings": recommended_meetings,
-            "total_count": len(recommended_meetings)
-        }
-
-    except Exception as e:
-        logger.error(f"추천 실패: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/recommend")
@@ -461,6 +464,7 @@ async def recommend_place(request: PlaceRecommendRequest):
 
 
 @router.post("/search", response_model=AISearchResponse)
+
 async def ai_search(
         request: AISearchRequest,
         ai_service: AIRecommendationService = Depends(get_ai_recommendation_service)
@@ -500,6 +504,10 @@ async def ai_search(
         ]
     }
     """
+
+    rid = str(uuid.uuid4())[:8]
+    logger.info(f"[RID={rid}] 🔍 AI 검색 요청: user_id={request.user_id}, prompt='{request.user_prompt}'")
+
     try:
         logger.info(f"🔍 AI 검색 요청: user_id={request.user_id}, prompt='{request.user_prompt}'")
 

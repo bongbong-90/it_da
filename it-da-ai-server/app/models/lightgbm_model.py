@@ -12,7 +12,7 @@ import lightgbm as lgb
 class LightGBMRankerModel:
     """LightGBM Ranker 모델"""
 
-    def __init__(self, model_path: str = "models/lightgbm_ranker.pkl"):
+    def __init__(self, model_path: str = "models/lightgbm_model.pkl"):
         self.model_path = Path(model_path)
         self.model: Optional[Union[lgb.Booster, lgb.LGBMRanker, Dict]] = None
         self.model_type: Optional[str] = None

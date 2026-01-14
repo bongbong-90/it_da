@@ -87,6 +87,30 @@ public class AISearchService {
                     .collect(Collectors.toList());
         }
 
+        // 키워드 필터 (title/description/locationName/address 중 하나라도 포함되면 통과)
+        if (request.getKeywords() != null && !request.getKeywords().isEmpty()) {
+            List<String> kws = request.getKeywords().stream()
+                    .filter(k -> k != null && !k.isBlank())
+                    .map(k -> k.toLowerCase().trim())
+                    .toList();
+
+            if (!kws.isEmpty()) {
+                meetings = meetings.stream()
+                        .filter(m -> {
+                            String hay = (
+                                    (m.getTitle() == null ? "" : m.getTitle()) + " " +
+                                            (m.getDescription() == null ? "" : m.getDescription()) + " " +
+                                            (m.getLocationName() == null ? "" : m.getLocationName()) + " " +
+                                            (m.getLocationAddress() == null ? "" : m.getLocationAddress())
+                            ).toLowerCase();
+
+                            // 하나라도 포함되면 통과(OR)
+                            return kws.stream().anyMatch(hay::contains);
+                        })
+                        .collect(Collectors.toList());
+            }
+        }
+
         // 거리 계산 (userLocation이 있으면)
         if (request.getUserLocation() != null &&
                 request.getUserLocation().getLatitude() != null &&

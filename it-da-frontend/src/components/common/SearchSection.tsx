@@ -1,12 +1,12 @@
-import { useState, FormEvent } from 'react';
-import './SearchSection.css';
+import { useState, FormEvent } from "react";
+import "./SearchSection.css";
 
 interface SearchSectionProps {
   onSearch: (query: string) => void;
 }
 
 const SearchSection = ({ onSearch }: SearchSectionProps) => {
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState("");
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -16,7 +16,7 @@ const SearchSection = ({ onSearch }: SearchSectionProps) => {
   };
 
   const handleVoiceSearch = () => {
-    alert('음성 검색 기능은 준비 중입니다!');
+    alert("음성 검색 기능은 준비 중입니다!");
   };
 
   return (
@@ -24,10 +24,11 @@ const SearchSection = ({ onSearch }: SearchSectionProps) => {
       <div className="search-content">
         <h1 className="search-title">메인 페이지</h1>
         <p className="search-subtitle">
-          당신의 취미를 찾아 드립니다<br />
+          당신의 취미를 찾아 드립니다
+          <br />
           당신의 현재 상태를 알려주세요
         </p>
-        
+
         <form className="search-bar" onSubmit={handleSubmit}>
           <input
             type="text"
@@ -36,9 +37,9 @@ const SearchSection = ({ onSearch }: SearchSectionProps) => {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
-          <button 
+          <button
             type="button"
-            className="voice-btn" 
+            className="voice-btn"
             title="음성 검색"
             onClick={handleVoiceSearch}
           >

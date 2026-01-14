@@ -18,7 +18,7 @@ public class AIServiceConfig {
      * FastAPI 서버 URL
      * 예: http://localhost:8000
      */
-    private String url;
+    private String url = "http://localhost:8000";
 
     /**
      * 요청 타임아웃 (밀리초)

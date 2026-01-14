@@ -12,7 +12,11 @@ export const router = createBrowserRouter(
   [
     {
       path: "/",
-      element: <HomePage />,
+      element: (
+        <ProtectedRoute>
+          <HomePage />
+        </ProtectedRoute>
+      ),
     },
     {
       path: "/login",

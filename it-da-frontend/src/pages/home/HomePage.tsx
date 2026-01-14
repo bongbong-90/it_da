@@ -38,48 +38,13 @@ const HomePage = () => {
 
   // ✅ AI 검색 핸들러 추가
   const handleAISearch = (query: string) => {
-    console.log("🔍 AI 검색 실행:", query);
-
-    if (!query.trim()) {
-      console.log("❌ 검색어 없음");
-      return;
-    }
-
-    const targetUrl = `/ai-matching?q=${encodeURIComponent(query)}`;
-    console.log("🚀 이동할 경로:", targetUrl);
-
-    // ✅ 강제 페이지 이동 (새로고침 발생)
-    window.location.href = targetUrl;
-
-    // ❌ navigate는 작동 안 함
-    // navigate(targetUrl);
+    if (!query.trim()) return;
+    navigate(`/ai-matching?q=${encodeURIComponent(query)}`); // ✅ 새로고침 없음
   };
 
   return (
     <div className="home-page">
       <Header />
-
-      {/* 🧪 테스트 버튼 추가 */}
-      <button
-        onClick={() => (window.location.href = "/ai-matching?q=test")}
-        style={{
-          position: "fixed",
-          top: "100px",
-          right: "20px",
-          padding: "15px 30px",
-          background: "#ff4444",
-          color: "white",
-          border: "none",
-          borderRadius: "10px",
-          fontSize: "16px",
-          fontWeight: "bold",
-          cursor: "pointer",
-          zIndex: 9999,
-          boxShadow: "0 4px 8px rgba(0,0,0,0.3)",
-        }}
-      >
-        🧪 AI 페이지로 강제 이동
-      </button>
 
       <div className="main-container">
         {/* ✅ AI 검색 연동 */}

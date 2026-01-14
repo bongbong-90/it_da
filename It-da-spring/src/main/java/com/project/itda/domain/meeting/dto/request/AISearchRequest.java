@@ -50,4 +50,5 @@ public class AISearchRequest {
             this.meetingIds = ids;
         }
     }
+
 }

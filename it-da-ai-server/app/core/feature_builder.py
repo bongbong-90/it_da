@@ -1,33 +1,56 @@
-"""
-Feature Builder for LightGBM Model
-사용자와 모임 정보를 받아서 특징 벡터 생성
-"""
-
+from typing import Dict, Tuple, List
 import numpy as np
 import math
-from typing import Dict, Tuple, List
 
 
 class FeatureBuilder:
     """LightGBM 모델을 위한 특징 추출기"""
 
     def __init__(self):
-        # 카테고리 매핑 (7개)
-        self.categories = [
-            "스포츠", "맛집", "카페", "문화예술", "스터디", "취미활동", "소셜"
-        ]
+        self.categories = ["스포츠", "맛집", "카페", "문화예술", "스터디", "취미활동", "소셜"]
 
-        # Vibe 매핑 (업데이트)
+        # ✅ 모델 학습 시 사용된 8개 vibe (27 features)
         self.vibes = [
-            "활기찬", "여유로운", "진지한", "즐거운", "감성적인",
-            "에너지 넘치는", "힐링", "창의적인"
+            "활기찬", "여유로운", "힐링", "진지한",
+            "즐거운", "감성적인", "건강한", "배움"
         ]
 
-        self.time_slots = ["morning", "afternoon", "evening", "night"]
-        self.location_types = ["indoor", "outdoor"]
+        # ✅ 더미 데이터 14개 vibe → 8개로 매핑
+        self.vibe_mapping = {
+            "활기찬": "활기찬",
+            "에너지 넘치는": "활기찬",  # 활기찬으로 통합
+            "건강한": "건강한",
+            "여유로운": "여유로운",
+            "맛있는": "여유로운",  # 여유로운으로 통합
+            "힐링": "힐링",
+            "감성적인": "감성적인",
+            "예술적인": "감성적인",  # 감성적인으로 통합
+            "창의적인": "감성적인",  # 감성적인으로 통합
+            "진지한": "진지한",
+            "집중적인": "진지한",  # 진지한으로 통합
+            "배움": "배움",
+            "즐거운": "즐거운",
+            "자유로운": "즐거운",  # 즐거운으로 통합
+        }
+
+        self.time_slots = ["MORNING", "AFTERNOON", "EVENING", "NIGHT"]
+        self.location_types = ["INDOOR", "OUTDOOR"]
+
+        # ✅ 고정 feature 길이: 12 + 7 + 8 = 27
+        base = 12
+        self.n_features = base + len(self.categories) + len(self.vibes)
+
+    def _normalize_vibe(self, vibe: str) -> str:
+        """14개 vibe를 8개로 매핑"""
+        if not vibe:
+            return ""
+        return self.vibe_mapping.get(vibe, vibe)
+
+    def one_hot_encode(self, value: str, categories: List[str]) -> List[int]:
+        v = "" if value is None else str(value)
+        return [1 if v == cat else 0 for cat in categories]
 
     def haversine_distance(self, lat1: float, lng1: float, lat2: float, lng2: float) -> float:
-        """Haversine 공식으로 거리 계산 (km)"""
         R = 6371
         dlat = math.radians(lat2 - lat1)
         dlng = math.radians(lng2 - lng1)
@@ -37,84 +60,118 @@ class FeatureBuilder:
         return R * c
 
     def calculate_interest_match(self, user_interests: str, meeting_category: str) -> float:
-        """사용자 관심사와 모임 카테고리 매칭 점수"""
-        if not user_interests:
+        if not user_interests or not meeting_category:
             return 0.0
-        user_keywords = set(user_interests.lower().split(", "))
-        meeting_keywords = set(meeting_category.lower().split())
-        if len(user_keywords) == 0:
+        user_keywords = set(str(user_interests).lower().split(", "))
+        meeting_keywords = set(str(meeting_category).lower().split())
+        if not user_keywords:
             return 0.0
-        match_count = len(user_keywords & meeting_keywords)
-        return match_count / len(user_keywords)
+        return len(user_keywords & meeting_keywords) / len(user_keywords)
 
     def calculate_cost_match(self, user_budget_type: str, meeting_cost: int) -> float:
-        """예산 성향 매칭 점수"""
         cost_ranges = {
             "low": (0, 10000), "value": (10000, 30000), "medium": (30000, 50000),
             "high": (50000, 100000), "premium": (100000, float('inf'))
         }
         if user_budget_type not in cost_ranges:
             return 0.5
+
         min_cost, max_cost = cost_ranges[user_budget_type]
+        meeting_cost = float(meeting_cost)
+
         if min_cost <= meeting_cost <= max_cost:
             return 1.0
-        elif meeting_cost < min_cost:
-            diff = min_cost - meeting_cost
-            return max(0.0, 1.0 - diff / min_cost)
-        else:
-            diff = meeting_cost - max_cost
-            return max(0.0, 1.0 - diff / max_cost)
+        if meeting_cost < min_cost:
+            denom = max(float(min_cost), 1.0)
+            return max(0.0, 1.0 - (min_cost - meeting_cost) / denom)
 
-    def one_hot_encode(self, value: str, categories: List[str]) -> List[int]:
-        """원핫 인코딩"""
-        return [1 if value == cat else 0 for cat in categories]
+        denom = max(float(max_cost), 1.0)
+        return max(0.0, 1.0 - (meeting_cost - max_cost) / denom)
 
-    def build(self, user: Dict, meeting: Dict) -> Tuple[Dict, np.ndarray]:
-        """특징 벡터 생성"""
-        distance_km = self.haversine_distance(
-            user.get("lat", 37.5), user.get("lng", 127.0),
-            meeting.get("lat", 37.5), meeting.get("lng", 127.0)
-        )
+    def build_vector(self, user: Dict, meeting: Dict) -> Tuple[Dict, List[float]]:
+        """특징 dict + 1D feature vector(List[float]) 생성"""
+
+        # ---- 기본값/타입 방어 ----
+        u_lat = float(user.get("lat", 37.5) or 37.5)
+        u_lng = float(user.get("lng", 127.0) or 127.0)
+        m_lat = float(meeting.get("lat", 37.5) or 37.5)
+        m_lng = float(meeting.get("lng", 127.0) or 127.0)
+
+        distance_km = self.haversine_distance(u_lat, u_lng, m_lat, m_lng)
+
         time_match = 1.0 if user.get("time_preference") == meeting.get("time_slot") else 0.0
         location_type_match = 1.0 if user.get("user_location_pref") == meeting.get("meeting_location_type") else 0.0
-        interest_match_score = self.calculate_interest_match(user.get("interests", ""), meeting.get("category", ""))
-        cost_match_score = self.calculate_cost_match(user.get("budget_type", "value"), meeting.get("expected_cost", 20000))
 
-        user_avg_rating = user.get("user_avg_rating", 3.0)
-        user_meeting_count = user.get("user_meeting_count", 0)
-        user_rating_std = user.get("user_rating_std", 0.5)
-        meeting_avg_rating = meeting.get("meeting_avg_rating", 3.0)
-        meeting_rating_count = meeting.get("meeting_rating_count", 0)
-        meeting_participant_count = meeting.get("meeting_participant_count", 0)
-        meeting_max_participants = meeting.get("max_participants", 10)
+        interest_match_score = self.calculate_interest_match(
+            user.get("interests", ""), meeting.get("category", "")
+        )
+
+        cost_match_score = self.calculate_cost_match(
+            user.get("budget_type", "value"),
+            int(meeting.get("expected_cost", 20000) or 20000),
+        )
+
+        user_avg_rating = float(user.get("user_avg_rating", 3.0) or 3.0)
+        user_meeting_count = float(user.get("user_meeting_count", 0) or 0)
+        user_rating_std = float(user.get("user_rating_std", 0.5) or 0.5)
+
+        meeting_avg_rating = float(meeting.get("meeting_avg_rating", 3.0) or 3.0)
+        meeting_rating_count = float(meeting.get("meeting_rating_count", 0) or 0)
+        meeting_participant_count = float(meeting.get("meeting_participant_count", 0) or 0)
+        meeting_max_participants = float(meeting.get("max_participants", 10) or 10)
 
         category_onehot = self.one_hot_encode(meeting.get("category", ""), self.categories)
-        vibe_onehot = self.one_hot_encode(meeting.get("vibe", ""), self.vibes)
 
-        features = {
-            "distance_km": distance_km, "time_match": time_match, "location_type_match": location_type_match,
-            "interest_match_score": interest_match_score, "cost_match_score": cost_match_score,
-            "user_avg_rating": user_avg_rating, "user_meeting_count": user_meeting_count, "user_rating_std": user_rating_std,
-            "meeting_avg_rating": meeting_avg_rating, "meeting_rating_count": meeting_rating_count,
-            "meeting_participant_count": meeting_participant_count, "meeting_max_participants": meeting_max_participants,
-        }
+        # ✅ vibe 매핑 적용
+        raw_vibe = meeting.get("vibe", "")
+        normalized_vibe = self._normalize_vibe(raw_vibe)
+        vibe_onehot = self.one_hot_encode(normalized_vibe, self.vibes)
 
         feature_vector = [
             distance_km, time_match, location_type_match, interest_match_score, cost_match_score,
             user_avg_rating, user_meeting_count, user_rating_std,
             meeting_avg_rating, meeting_rating_count, meeting_participant_count, meeting_max_participants,
-            *category_onehot, *vibe_onehot,
+            *category_onehot,
+            *vibe_onehot,
         ]
 
-        return features, np.array([feature_vector])
+        if len(feature_vector) != self.n_features:
+            raise ValueError(f"Feature length mismatch: {len(feature_vector)} != {self.n_features} (expected 27)")
+
+        features = {
+            "distance_km": distance_km,
+            "time_match": time_match,
+            "location_type_match": location_type_match,
+            "interest_match_score": interest_match_score,
+            "cost_match_score": cost_match_score,
+        }
+
+        return features, feature_vector
+
+    def build(self, user: Dict, meeting: Dict) -> Tuple[Dict, np.ndarray]:
+        """특징 벡터 생성 (호환 유지: (1, n_features) 반환)"""
+        features, vec = self.build_vector(user, meeting)
+        return features, np.asarray([vec], dtype=float)
+
+    def build_batch(self, user: Dict, meetings: List[Dict]) -> Tuple[List[Dict], np.ndarray]:
+        """동일 user + 여러 meeting → (features_list, X[N, n_features])"""
+        feats_list: List[Dict] = []
+        vectors: List[List[float]] = []
+
+        for m in meetings:
+            feats, vec = self.build_vector(user, m)
+            feats_list.append(feats)
+            vectors.append(vec)
+
+        X = np.asarray(vectors, dtype=float)
+        return feats_list, X
 
     def get_feature_names(self) -> List[str]:
-        """특징 이름 리스트"""
         base_features = [
             "distance_km", "time_match", "location_type_match", "interest_match_score", "cost_match_score",
             "user_avg_rating", "user_meeting_count", "user_rating_std",
             "meeting_avg_rating", "meeting_rating_count", "meeting_participant_count", "meeting_max_participants",
         ]
         category_features = [f"category_{cat}" for cat in self.categories]
-        vibe_features = [f"vibe_{vibe}" for vibe in self.vibes]
+        vibe_features = [f"vibe_{v}" for v in self.vibes]
         return base_features + category_features + vibe_features

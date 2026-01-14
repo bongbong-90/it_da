@@ -1,26 +1,28 @@
 package com.project.itda.domain.user.controller;
 
 import com.project.itda.domain.user.dto.request.UserContextDTO;
+import com.project.itda.domain.user.dto.response.UserContextResponse;
 import com.project.itda.domain.user.service.UserService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/users")
 @RequiredArgsConstructor
-@CrossOrigin(origins = {"http://localhost:3000", "http://localhost:5173", "http://localhost:8000"})
+@Slf4j
 public class UserContextController {
 
     private final UserService userService;
 
-    /**
-     * 사용자 컨텍스트 조회 (FastAPI AI 서버용)
-     * GET /api/users/{userId}/context
-     */
+    // ✅ PathVariable로 변경
     @GetMapping("/{userId}/context")
-    public ResponseEntity<UserContextDTO> getUserContext(@PathVariable Long userId) {
-        UserContextDTO context = userService.getUserContext(userId);
+    public ResponseEntity<UserContextResponse> getUserContext(
+            @PathVariable Long userId
+    ) {
+        log.info("📊 사용자 컨텍스트 조회: userId={}", userId);
+        UserContextResponse context = userService.getUserContext(userId);
         return ResponseEntity.ok(context);
     }
 }

@@ -121,7 +121,22 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
         SELECT SQRT(AVG((r.rating - sub.avg) * (r.rating - sub.avg)))
         FROM Review r,
         (SELECT AVG(r2.rating) as avg FROM Review r2 WHERE r2.user.id = :userId) sub
-        WHERE r.user.id = :userId
+        WHERE r.user.userId = :userId
         """)
     Double findRatingStdByUserId(@Param("userId") Long userId);
+
+    // ReviewRepository.java에 추가할 메서드
+
+    /**
+     * 사용자 평균 평점 조회
+     */
+    @Query("SELECT AVG(r.rating) FROM Review r WHERE r.user.userId = :userId AND r.deletedAt IS NULL")
+    Double findAvgRatingByUserId(@Param("userId") Long userId);
+
+    /**
+     * 사용자 평점 개수 조회
+     */
+    @Query("SELECT COUNT(r) FROM Review r WHERE r.user.userId = :userId AND r.deletedAt IS NULL")
+    Long countByUserId(@Param("userId") Long userId);
+
 }

@@ -4,6 +4,7 @@ import com.project.itda.domain.review.repository.ReviewRepository;
 import com.project.itda.domain.user.dto.request.UserContextDTO;
 import com.project.itda.domain.user.dto.request.UserSignupRequest;
 import com.project.itda.domain.user.dto.request.UserUpdateRequest;
+import com.project.itda.domain.user.dto.response.UserContextResponse;
 import com.project.itda.domain.user.dto.response.UserDetailResponse;
 import com.project.itda.domain.user.dto.response.UserResponse;
 import com.project.itda.domain.user.entity.User;
@@ -14,6 +15,7 @@ import com.project.itda.domain.user.repository.UserPreferenceRepository;
 import com.project.itda.domain.user.repository.UserRepository;
 import com.project.itda.domain.user.repository.UserSettingRepository;
 import com.project.itda.global.service.GeocodingService;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -140,28 +142,34 @@ public class UserService {
     /**
      * 사용자 컨텍스트 조회 (AI 추천용)
      */
-    public UserContextDTO getUserContext(Long userId) {
+    @Transactional(readOnly = true)
+    public UserContextResponse getUserContext(Long userId) {
+        // 사용자 조회
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("User not found: " + userId));
+                .orElseThrow(() -> new EntityNotFoundException("사용자를 찾을 수 없습니다: " + userId));
 
-        // 사용자 평균 평점 계산
-        Double avgRating = reviewRepository.findAverageRatingByUserId(userId);
+        // ✅ Null-safe preference 처리
+        UserPreference preference = user.getPreference();
+        String interests = (preference != null) ? preference.getInterests() : "";
+        String timePreference = (preference != null) ? preference.getTimePreference() : "";
+        String budgetType = (preference != null && preference.getBudgetType() != null)
+                ? preference.getBudgetType().name()
+                : "VALUE";
 
-        // 사용자 참여 모임 수
-        Integer meetingCount = reviewRepository.countReviewsByUserId(userId);
-
-        // 평점 표준편차 계산
+        // ✅ 사용자 통계 조회 (null-safe)
+        Double avgRating = reviewRepository.findAvgRatingByUserId(userId);
+        Long ratingCount = reviewRepository.countByUserId(userId);
         Double ratingStd = reviewRepository.findRatingStdByUserId(userId);
 
-        return UserContextDTO.builder()
-                .userId(user.getUserId())
+        return UserContextResponse.builder()
+                .userId(userId)
                 .latitude(user.getLatitude())
                 .longitude(user.getLongitude())
-                .interests(user.getPreference().getInterests())  // "스포츠,카페,문화예술"
-                .timePreference(user.getPreference().getTimePreference())  // "morning", "afternoon", "evening"
-                .budgetType(user.getPreference().getBudgetType() != null ? user.getPreference().getBudgetType().name() : "MODERATE")
+                .interests(interests != null ? interests : "")
+                .timePreference(timePreference != null ? timePreference : "")
+                .budgetType(budgetType)
                 .userAvgRating(avgRating != null ? avgRating : 0.0)
-                .userMeetingCount(meetingCount != null ? meetingCount : 0)
+                .userMeetingCount(user.getMeetingCount() != null ? user.getMeetingCount() : 0)
                 .userRatingStd(ratingStd != null ? ratingStd : 0.0)
                 .build();
     }

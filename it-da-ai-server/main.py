@@ -61,17 +61,25 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:3000",      # React 개발 서버
         "http://localhost:5173",      # Vite 개발 서버
+        "http://localhost:8080",      # Spring Boot
         "http://127.0.0.1:3000",
         "http://127.0.0.1:5173",
+        "http://127.0.0.1:8080",
     ],
     allow_credentials=True,
     allow_methods=["*"],              # 모든 HTTP 메서드 허용
     allow_headers=["*"],              # 모든 헤더 허용
 )
 
-# 라우터 등록
-app.include_router(recommendations_router)
+# ========================================
+# ✅ 라우터 등록 - prefix 추가
+# ========================================
+
+# Spring Boot가 호출하는 엔드포인트
 app.include_router(ai_router)
+
+# React가 직접 호출하는 엔드포인트
+app.include_router(recommendations_router)
 
 @app.get("/")
 async def root():
@@ -80,6 +88,14 @@ async def root():
         "status": "ok",
         "message": "ITDA AI Server is running",
         "version": "2.0.0",
+        "models": model_loader.get_status()
+    }
+
+@app.get("/api/ai/recommendations/health")
+async def health_check():
+    """AI 추천 시스템 헬스 체크"""
+    return {
+        "status": "healthy",
         "models": model_loader.get_status()
     }
 

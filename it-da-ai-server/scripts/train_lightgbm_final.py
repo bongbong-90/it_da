@@ -93,28 +93,50 @@ y = y[nan_mask]
 print(f"완료! 특징: {X.shape[1]}개, 샘플: {X.shape[0]:,}개 (NaN 제거 후)")
 
 X_train, X_test, y_train, y_test, idx_train, idx_test = train_test_split(X, y, range(len(X)), test_size=0.2, random_state=42)
-
 print("\nLightGBM Regressor 학습...")
+
 model = lgb.LGBMRegressor(
-    objective='regression',
-    metric='rmse',
-    n_estimators=100,
-    learning_rate=0.05,
-    num_leaves=31,
-    max_depth=6,
+    objective="regression",
+    metric="rmse",
+    n_estimators=500,          # ✅ 좀 넉넉히 주고
+    learning_rate=0.03,        # ✅ 낮추고
+    max_depth=5,               # ✅ 2^5=32
+    num_leaves=31,             # ✅ <=32라서 경고 사라짐
+    min_child_samples=30,      # ✅ 데이터 작을 때 과적합 방지 (20~50 범위 추천)
+    subsample=0.8,             # ✅ row 샘플링
+    colsample_bytree=0.8,      # ✅ feature 샘플링
+    reg_alpha=0.1,             # ✅ L1
+    reg_lambda=1.0,            # ✅ L2
     random_state=42
 )
 
-# Regressor는 group 불필요
 model.fit(
     X_train, y_train,
     eval_set=[(X_test, y_test)],
-    eval_metric='rmse',
-    callbacks=[lgb.early_stopping(10, verbose=False)]
+    eval_metric="rmse",
+    callbacks=[lgb.early_stopping(30, verbose=False)]
 )
 
-with open('models/lightgbm_ranker.pkl', 'wb') as f:
+with open("models/lightgbm_model.pkl", "wb") as f:
     pickle.dump(model, f)
 
 print(f"\n✅ 저장 완료! 특징: {model.n_features_in_}개")
 print("테스트:", model.predict(X_test[:5]))
+
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+import numpy as np
+
+pred_train = model.predict(X_train)
+pred_test = model.predict(X_test)
+
+rmse_train = mean_squared_error(y_train, pred_train, squared=False)
+rmse_test  = mean_squared_error(y_test, pred_test, squared=False)
+mae_test   = mean_absolute_error(y_test, pred_test)
+r2_test    = r2_score(y_test, pred_test)
+
+print("y_train std:", np.std(y_train), "y_test std:", np.std(y_test))
+print("RMSE train:", rmse_train)
+print("RMSE test :", rmse_test)
+print("MAE  test :", mae_test)
+print("R2   test :", r2_test)
+print("pred std  :", np.std(pred_test), "pred mean:", np.mean(pred_test))

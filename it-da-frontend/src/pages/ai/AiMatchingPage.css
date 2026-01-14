@@ -7,7 +7,7 @@
 }
 
 .ai-matching-page {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   background: #f5f7fa;
   min-height: 100vh;
   padding-bottom: 100px;
@@ -141,7 +141,7 @@
 }
 
 .point-item::before {
-  content: '✅';
+  content: "✅";
   flex-shrink: 0;
 }
 
@@ -221,7 +221,7 @@
 }
 
 .reasoning-text::after {
-  content: '';
+  content: "";
   position: absolute;
   bottom: 0;
   left: 0;
@@ -281,7 +281,9 @@
   display: flex;
   gap: 12px;
   cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition:
+    transform 0.2s,
+    box-shadow 0.2s;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
@@ -444,4 +446,58 @@
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
+}
+
+.relax-banner {
+  margin: 12px 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(255, 220, 120, 0.25);
+  border: 1px solid rgba(255, 180, 60, 0.35);
+  font-size: 14px;
+  line-height: 1.4;
+}
+.relax-banner b {
+  font-weight: 700;
+}
+
+/* AIMatchingPage.css */
+
+.low-confidence-notice {
+  background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+  border-left: 4px solid #ffc107;
+  padding: 16px 20px;
+  margin: 16px 0;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(255, 193, 7, 0.1);
+}
+
+.low-confidence-notice p {
+  margin: 8px 0;
+  color: #856404;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.low-confidence-notice p:first-child {
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.low-confidence-notice button {
+  margin-top: 12px;
+  padding: 8px 16px;
+  background: #ffc107;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.low-confidence-notice button:hover {
+  background: #ffb300;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(255, 193, 7, 0.3);
 }

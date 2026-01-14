@@ -36,77 +36,109 @@ public class AiRecommendationService {
      * @param topN 추천 개수
      * @return 추천 모임 목록
      */
+    @Transactional(readOnly = true)
     public AiRecommendListResponse recommendMeetings(Long userId, Integer topN) {
         long startTime = System.currentTimeMillis();
-
         log.info("🎯 AI 모임 추천 시작 - userId: {}, topN: {}", userId, topN);
 
+        // 0) 입력값 방어
+        if (userId == null) {
+            throw new IllegalArgumentException("userId는 null일 수 없습니다.");
+        }
+        int safeTopN = (topN == null || topN <= 0) ? 10 : Math.min(topN, 50); // ✅ 상한도 여기서 처리
+
         try {
-            // 1. 사용자 조회
+            // 1) 사용자 조회 (distance 계산/검증용이면 유지, 아니면 제거 가능)
             User user = userRepository.findById(userId)
                     .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: " + userId));
 
-            // 2. FastAPI로 AI 추천 요청
+            // 2) FastAPI로 AI 추천 요청 ✅ request를 실제로 사용
             MeetingRecommendRequest request = MeetingRecommendRequest.builder()
                     .userId(userId.intValue())
-                    .topN(topN)
+                    .topN(safeTopN)
                     .build();
 
+            // ✅ 여기: request를 보내는 메서드로 호출 (AIServiceClient에 post 메서드가 있어야 함)
             MeetingRecommendResponse aiResponse = aiServiceClient.recommendMeetings(request);
 
-            if (!aiResponse.getSuccess() || aiResponse.getRecommendations().isEmpty()) {
+            if (aiResponse == null
+                    || !Boolean.TRUE.equals(aiResponse.getSuccess())
+                    || aiResponse.getRecommendations() == null
+                    || aiResponse.getRecommendations().isEmpty()) {
                 log.warn("⚠️ AI 추천 결과 없음 - userId: {}", userId);
-                return buildEmptyResponse(userId);
+                return buildEmptyResponse(userId, startTime);
             }
 
-            // 3. 추천된 모임 ID 리스트 추출
+            // 3) 추천된 모임 ID 리스트(중복 제거, 순서 유지)
             List<Long> meetingIds = aiResponse.getRecommendations().stream()
-                    .map(r -> r.getMeetingId().longValue())
-                    .collect(Collectors.toList());
+                    .map(r -> r.getMeetingId() == null ? null : r.getMeetingId().longValue())
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.collectingAndThen(
+                            Collectors.toCollection(LinkedHashSet::new), // ✅ 순서 유지 + 중복 제거
+                            ArrayList::new
+                    ));
+
+            if (meetingIds.isEmpty()) {
+                log.warn("⚠️ AI 추천 meetingIds 비어있음 - userId: {}", userId);
+                return buildEmptyResponse(userId, startTime);
+            }
 
             log.info("📋 AI 추천 모임 IDs: {}", meetingIds);
 
-            // 4. DB에서 실제 모임 정보 조회
+            // 4) DB에서 모임 조회
             List<Meeting> meetings = meetingRepository.findAllById(meetingIds);
-
-            if (meetings.isEmpty()) {
+            if (meetings == null || meetings.isEmpty()) {
                 log.warn("⚠️ DB에서 모임을 찾을 수 없음 - meetingIds: {}", meetingIds);
-                return buildEmptyResponse(userId);
+                return buildEmptyResponse(userId, startTime);
             }
 
-            // 5. AI 점수와 DB 모임 정보 매칭
+            // 5) meetingId -> Meeting 맵
+            Map<Long, Meeting> meetingMap = meetings.stream()
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toMap(Meeting::getMeetingId, m -> m, (a, b) -> a));
+
+            // 6) meetingId -> score/rank 맵
             Map<Long, MeetingRecommendResponse.RecommendedMeeting> scoreMap =
                     aiResponse.getRecommendations().stream()
+                            .filter(r -> r != null && r.getMeetingId() != null)
                             .collect(Collectors.toMap(
                                     r -> r.getMeetingId().longValue(),
-                                    r -> r
+                                    r -> r,
+                                    (a, b) -> a
                             ));
 
-            // 6. DTO 변환 (AI 점수 순서 유지)
+            // 7) DB에 없는 ID 로깅
+            List<Long> missingIds = meetingIds.stream()
+                    .filter(id -> !meetingMap.containsKey(id))
+                    .toList();
+            if (!missingIds.isEmpty()) {
+                log.warn("⚠️ AI 추천 ID 중 DB에 없는 항목: {}", missingIds);
+            }
+
+            // 8) DTO 변환 (AI 순서 유지)
             List<RecommendedMeetingDTO> recommendations = meetingIds.stream()
                     .map(meetingId -> {
-                        Meeting meeting = meetings.stream()
-                                .filter(m -> m.getMeetingId().equals(meetingId))
-                                .findFirst()
-                                .orElse(null);
-
-                        if (meeting == null) return null;
-
+                        Meeting meeting = meetingMap.get(meetingId);
                         MeetingRecommendResponse.RecommendedMeeting aiMeeting = scoreMap.get(meetingId);
+                        if (meeting == null || aiMeeting == null) return null;
 
-                        // 거리 계산 (사용자 위치 - 모임 위치)
-                        Double distanceKm = calculateDistance(
-                                user.getLatitude(),
-                                user.getLongitude(),
-                                meeting.getLatitude(),
-                                meeting.getLongitude()
-                        );
+                        Double distanceKm = null;
+                        if (user.getLatitude() != null && user.getLongitude() != null
+                                && meeting.getLatitude() != null && meeting.getLongitude() != null) {
+                            distanceKm = calculateDistance(
+                                    user.getLatitude(),
+                                    user.getLongitude(),
+                                    meeting.getLatitude(),
+                                    meeting.getLongitude()
+                            );
+                        }
 
-                        // 추천 이유 생성
-                        String reason = generateRecommendReason(aiMeeting.getScore(), distanceKm);
+                        Double score = aiMeeting.getScore();
+                        String reason = generateRecommendReason(score, distanceKm);
+
+                        User organizer = meeting.getOrganizer();
 
                         return RecommendedMeetingDTO.builder()
-                                // 모임 기본 정보
                                 .meetingId(meeting.getMeetingId())
                                 .title(meeting.getTitle())
                                 .description(meeting.getDescription())
@@ -122,58 +154,69 @@ public class AiRecommendationService {
                                 .maxParticipants(meeting.getMaxParticipants())
                                 .expectedCost(meeting.getExpectedCost())
                                 .imageUrl(meeting.getImageUrl())
-                                .status(meeting.getStatus().name())
-                                // AI 추천 정보
-                                .aiScore(aiMeeting.getScore())
+                                .status(meeting.getStatus() != null ? meeting.getStatus().name() : null)
+
+                                .aiScore(score)
                                 .rank(aiMeeting.getRank())
                                 .distanceKm(distanceKm)
                                 .recommendReason(reason)
-                                // 주최자 정보
-                                .organizerId(meeting.getOrganizer().getUserId())
-                                .organizerUsername(meeting.getOrganizer().getUsername())
-                                .organizerProfileImage(meeting.getOrganizer().getProfileImageUrl())
+
+                                .organizerId(organizer != null ? organizer.getUserId() : null)
+                                .organizerUsername(organizer != null ? organizer.getUsername() : null)
+                                .organizerProfileImage(organizer != null ? organizer.getProfileImageUrl() : null)
                                 .build();
                     })
                     .filter(Objects::nonNull)
-                    .collect(Collectors.toList());
+                    .toList();
 
             long processingTime = System.currentTimeMillis() - startTime;
+
+            Map<String, Object> modelInfoMap = Map.of();
+            if (aiResponse.getModelInfo() != null) {
+                Map<String, Object> tmp = new HashMap<>();
+                tmp.put("rmse", aiResponse.getModelInfo().getRmse());
+                tmp.put("mae", aiResponse.getModelInfo().getMae());
+                tmp.put("accuracy", aiResponse.getModelInfo().getAccuracy());
+                modelInfoMap = tmp;
+            }
 
             log.info("✅ AI 추천 완료 - userId: {}, 추천 개수: {}, 처리 시간: {}ms",
                     userId, recommendations.size(), processingTime);
 
-            // 7. 최종 응답
             return AiRecommendListResponse.builder()
                     .success(true)
                     .message("AI 추천 성공")
                     .userId(userId)
                     .recommendations(recommendations)
                     .totalCount(recommendations.size())
-                    .modelInfo(Map.of(
-                            "rmse", aiResponse.getModelInfo().getRmse(),
-                            "mae", aiResponse.getModelInfo().getMae(),
-                            "accuracy", aiResponse.getModelInfo().getAccuracy()
-                    ))
+                    .modelInfo(modelInfoMap)
                     .processingTimeMs(processingTime)
                     .build();
 
+        } catch (IllegalArgumentException e) {
+            log.warn("⚠️ AI 추천 요청 오류: {}", e.getMessage());
+            throw e;
         } catch (Exception e) {
             log.error("❌ AI 추천 실패: {}", e.getMessage(), e);
             throw new RuntimeException("AI 추천 처리 중 오류 발생: " + e.getMessage(), e);
         }
     }
 
+
+
     /**
-     * 빈 응답 생성
+     * 빈 응답 생성(처리시간 포함)
      */
-    private AiRecommendListResponse buildEmptyResponse(Long userId) {
+    private AiRecommendListResponse buildEmptyResponse(Long userId, long startTime) {
+        long processingTime = System.currentTimeMillis() - startTime;
         return AiRecommendListResponse.builder()
-                .success(false)
-                .message("추천 가능한 모임이 없습니다")
+                .success(true)
+                .message("추천 결과 없음")
                 .userId(userId)
-                .recommendations(Collections.emptyList())
+                .recommendations(List.of())
                 .totalCount(0)
-                .processingTimeMs(0L)
+                .modelInfo(Map.of())
+                .processingTimeMs(processingTime)
                 .build();
     }
 

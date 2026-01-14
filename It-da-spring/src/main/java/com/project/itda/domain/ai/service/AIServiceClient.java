@@ -15,6 +15,7 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import java.util.Map;
 
@@ -134,8 +135,44 @@ public class AIServiceClient {
      * @param request 사용자 ID + 추천 개수
      * @return 추천 모임 목록 (meeting_id, score, rank)
      */
+    public MeetingRecommendResponse recommendMeetingsPost(MeetingRecommendRequest request) {
+        return post("/api/ai/recommendations/meetings", request, MeetingRecommendResponse.class);
+    }
+
+    public MeetingRecommendResponse recommendMeetingsGet(Long userId, int topN) {
+        String url = UriComponentsBuilder
+                .fromHttpUrl(config.getUrl())
+                .path("/api/ai/recommendations/meetings")
+                .queryParam("user_id", userId)
+                .queryParam("top_n", topN)
+                .toUriString();
+
+        try {
+            log.info("🤖 FastAPI GET: {}", url);
+            ResponseEntity<MeetingRecommendResponse> response =
+                    restTemplate.getForEntity(url, MeetingRecommendResponse.class);
+            return response.getBody();
+        } catch (Exception e) {
+            throw new AIServiceException("FastAPI GET 요청 실패: " + e.getMessage(), e);
+        }
+    }
+
     public MeetingRecommendResponse recommendMeetings(MeetingRecommendRequest request) {
-        return post("/api/ai/recommend/meetings", request, MeetingRecommendResponse.class);
+        if (request == null) {
+            throw new IllegalArgumentException("MeetingRecommendRequest는 null일 수 없습니다.");
+        }
+        if (request.getUserId() == null) {
+            throw new IllegalArgumentException("userId는 null일 수 없습니다.");
+        }
+
+        int safeTopN = (request.getTopN() == null || request.getTopN() <= 0)
+                ? 10
+                : Math.min(request.getTopN(), 50);
+
+        return recommendMeetingsGet(
+                request.getUserId().longValue(),
+                safeTopN
+        );
     }
 
     // ========================================================================
@@ -163,7 +200,7 @@ public class AIServiceClient {
      * @return 중간지점 + 검색 반경
      */
     public PlaceRecommendResponse calculateCentroid(PlaceRecommendRequest request) {
-        return post("/api/ai/recommend/place", request, PlaceRecommendResponse.class);
+        return post("/api/ai/recommendations/place", request, PlaceRecommendResponse.class);
     }
 
     // ========================================================================
@@ -197,4 +234,6 @@ public class AIServiceClient {
     public Map<String, Object> getModelsInfo() {
         return get("/api/ai/models/info", Map.class);
     }
+
+
 }

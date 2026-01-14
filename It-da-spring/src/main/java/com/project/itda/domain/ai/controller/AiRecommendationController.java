@@ -45,10 +45,10 @@ public class AiRecommendationController {
     @GetMapping("/meetings")
     public ResponseEntity<AiRecommendListResponse> recommendMeetings(
             @Parameter(description = "사용자 ID", required = true)
-            @RequestParam Long userId,
+            @RequestParam("user_id") Long userId,
 
             @Parameter(description = "추천 개수 (기본: 10, 최대: 50)")
-            @RequestParam(defaultValue = "10") Integer topN
+            @RequestParam(value = "top_n", defaultValue = "10") Integer topN
     ) {
         log.info("📍 GET /api/ai/recommendations/meetings - userId: {}, topN: {}", userId, topN);
 
