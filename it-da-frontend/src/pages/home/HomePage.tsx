@@ -45,7 +45,6 @@ const HomePage = () => {
   return (
     <div className="home-page">
       <Header />
-
       <div className="main-container">
         {/* ✅ AI 검색 연동 */}
         <SearchSection onSearch={handleAISearch} />

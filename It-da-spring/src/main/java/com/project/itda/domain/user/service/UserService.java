@@ -36,7 +36,7 @@ public class UserService {
     private final UserSettingRepository userSettingRepository;
     private final PasswordEncoder passwordEncoder;
     private final GeocodingService geocodingService;
-    private final ReviewRepository reviewRepository;  // ✅ 추가 필요
+    private final ReviewRepository reviewRepository;
 
     @Transactional
     public UserResponse signup(UserSignupRequest request) {
@@ -44,15 +44,12 @@ public class UserService {
             throw new IllegalArgumentException("이미 존재하는 이메일입니다");
         }
 
-        // ✅ 위도/경도 조회
         Double latitude = null;
         Double longitude = null;
 
         if (request.getAddress() != null && !request.getAddress().trim().isEmpty()) {
             log.info("🔍 주소로 위경도 조회 시작: {}", request.getAddress());
-
             GeocodingService.Coordinates coords = geocodingService.getCoordinates(request.getAddress());
-
             if (coords != null) {
                 latitude = coords.getLatitude();
                 longitude = coords.getLongitude();
@@ -77,7 +74,6 @@ public class UserService {
         log.info("✅ 회원가입 완료: userId={}, lat={}, lng={}",
                 user.getUserId(), user.getLatitude(), user.getLongitude());
 
-        // UserPreference 저장
         if (request.getPreferences() != null) {
             UserPreference preference = UserPreference.builder()
                     .user(user)
@@ -90,12 +86,10 @@ public class UserService {
                     .timePreference(String.valueOf(TimePreference.valueOf(request.getPreferences().getTimePreference())))
                     .interests(request.getPreferences().getInterests())
                     .build();
-
             userPreferenceRepository.save(preference);
             log.info("✅ 선호도 저장 완료: userId={}", user.getUserId());
         }
 
-        // 기본 UserSetting 생성
         UserSetting setting = UserSetting.builder()
                 .user(user)
                 .build();
@@ -124,9 +118,15 @@ public class UserService {
         user.updateInfo(
                 request.getUsername(),
                 request.getPhone(),
+                request.getAddress(),
                 null,
                 null,
-                null
+                request.getProfileImageUrl(),
+                request.getBio(),
+                request.getGender(),
+                request.getMbti(),
+                request.getInterests(),
+                request.getIsPublic()
         );
 
         return UserResponse.from(user);
@@ -136,7 +136,11 @@ public class UserService {
     public void deleteUser(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다"));
-        userRepository.delete(user);
+
+        // 소프트 삭제
+        user.softDelete();
+        userRepository.save(user);
+        log.info("✅ 계정 삭제 완료: userId={}", userId);
     }
 
     /**
@@ -144,7 +148,6 @@ public class UserService {
      */
     @Transactional(readOnly = true)
     public UserContextResponse getUserContext(Long userId) {
-        // 사용자 조회
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new EntityNotFoundException("사용자를 찾을 수 없습니다: " + userId));
 
@@ -173,4 +176,27 @@ public class UserService {
                 .userRatingStd(ratingStd != null ? ratingStd : 0.0)
                 .build();
     }
+
+//    public UserContextDTO getUserContext(Long userId) {
+//        User user = userRepository.findById(userId)
+//                .orElseThrow(() -> new EntityNotFoundException("사용자를 찾을 수 없습니다: " + userId));
+//
+//        Double avgRating = reviewRepository.findAverageRatingByUserId(userId);
+//        Integer meetingCount = reviewRepository.countReviewsByUserId(userId);
+//        Double ratingStd = reviewRepository.findRatingStdByUserId(userId);
+//
+//        return UserContextDTO.builder()
+//                .userId(userId)
+//                .latitude(user.getLatitude())
+//                .longitude(user.getLongitude())
+//                .interests(user.getPreference() != null ? user.getPreference().getInterests() : null)
+//                .timePreference(user.getPreference() != null ? user.getPreference().getTimePreference() : null)
+//                .budgetType(user.getPreference() != null && user.getPreference().getBudgetType() != null
+//                        ? user.getPreference().getBudgetType().name() : "MODERATE")
+//                .userAvgRating(avgRating != null ? avgRating : 0.0)
+//                .userMeetingCount(user.getMeetingCount() != null ? user.getMeetingCount() : 0)
+//                .userRatingStd(ratingStd != null ? ratingStd : 0.0)
+//                .build();
+//
+//    }
 }
