@@ -13,6 +13,10 @@ class ParticipantLocation(BaseModel):
     longitude: float = Field(..., ge=-180, le=180)
 
 
+# ✅ Participant alias 추가 (geolocation_service에서 사용)
+Participant = ParticipantLocation
+
+
 class Centroid(BaseModel):
     """중간지점 (Centroid)"""
     latitude: float
