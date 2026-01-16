@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { router } from "../../router";
-import type { FollowNotification } from "../../../hooks/auth/useFollowWebSocket";
+import { router } from "../../../router/index.tsx";
+import type { FollowNotification } from "../../../hooks/auth/usefollowwebsocket";
 import "./FollowToast.css";
 
 interface Props {

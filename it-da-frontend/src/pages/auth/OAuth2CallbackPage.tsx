@@ -20,6 +20,8 @@ const OAuth2CallbackPage: React.FC = () => {
     processCallback();
   }, [handleCallback]);
 
+  console.log("CALLBACK PAGE MOUNT ✅", window.location.href);
+
   return (
     <div className="oauth-callback-page">
       <div className="callback-container">

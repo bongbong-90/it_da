@@ -1,14 +1,14 @@
 import { RouterProvider } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "react-hot-toast";
-import { router } from "./pages/router";
+import { router } from "./router/index";
 import "./App.css";
 import { useCallback, useState } from "react";
 import { useAuthStore } from "./stores/useAuthStore";
 import {
   useFollowWebSocket,
   FollowNotification,
-} from "./hooks/auth/useFollowWebSocket";
+} from "./hooks/auth/usefollowwebsocket";
 import { useNotificationStore } from "./stores/useNotificationStore";
 import FollowToast from "./pages/mypage/components/FollowToast";
 

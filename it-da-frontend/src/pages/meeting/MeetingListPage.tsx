@@ -279,7 +279,7 @@ const MeetingListPage = () => {
   const currentInfo = getCurrentCategoryInfo();
 
   // ✅ Zustand store에서 데이터 가져오기
-  const { meetings, isLoading, error, fetchMeetingsByCategory } =
+  const { error, isLoading, meetings, fetchMeetings, fetchMeetingsByCategory } =
     useMeetingStore();
 
   // ✅ 필터 상태 관리
@@ -292,18 +292,12 @@ const MeetingListPage = () => {
 
   // ✅ 컴포넌트 마운트 시 서버에서 데이터 로드
   useEffect(() => {
-    console.log("🔄 데이터 로드 시작:", { category, subcategory });
     if (category) {
-      if (subcategory) {
-        fetchMeetingsByCategory(category, subcategory);
-      } else {
-        fetchMeetingsByCategory(category);
-      }
+      fetchMeetingsByCategory(category, subcategory ?? undefined);
     } else {
-      // 전체 모임 - 카테고리 없이 전체 조회
-      fetchMeetingsByCategory();
+      fetchMeetings();
     }
-  }, [category, subcategory, fetchMeetingsByCategory]);
+  }, [category, subcategory, fetchMeetings, fetchMeetingsByCategory]);
 
   // ✅ 날짜 포맷팅 함수
   const formatDate = (dateStr: string) => {
@@ -670,7 +664,7 @@ const MeetingListPage = () => {
               <div
                 key={m.meetingId}
                 className={viewMode === "grid" ? styles.card : styles.listItem}
-                onClick={() => navigate(`/meetings/${m.meetingId}`)}
+                onClick={() => navigate(`/meeting/${m.meetingId}`)}
               >
                 {viewMode === "grid" ? (
                   <>

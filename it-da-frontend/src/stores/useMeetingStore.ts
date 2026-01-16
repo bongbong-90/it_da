@@ -12,7 +12,9 @@ interface Meeting {
   category: string;
   subcategory: string;
   locationName: string;
+  locationAddress?: string; // ✅ 추가
   meetingTime: string;
+  createdAt?: string; // ✅ 추가
   maxParticipants: number;
   currentParticipants: number;
   expectedCost: number;
@@ -20,6 +22,7 @@ interface Meeting {
   imageUrl?: string;
   avgRating?: number;
   organizerId: number;
+  isFull?: boolean; // ✅ 추가 (또는 계산해서 넣기)
 }
 
 interface RecentItem {
@@ -55,23 +58,31 @@ interface MeetingStore {
 
 const API_BASE_URL = "http://localhost:8080/api";
 
-const normalizeMeeting = (m: any): Meeting => ({
-  meetingId: m.meetingId ?? m.meeting_id,
-  title: m.title,
-  description: m.description,
-  category: m.category,
-  subcategory: m.subcategory,
-  locationName: m.locationName ?? m.location_name,
-  meetingTime: m.meetingTime ?? m.meeting_time,
-  maxParticipants: m.maxParticipants ?? m.max_participants,
-  currentParticipants: m.currentParticipants ?? m.current_participants,
-  expectedCost: m.expectedCost ?? m.expected_cost,
-  vibe: m.vibe,
-  imageUrl: m.imageUrl ?? m.image_url,
-  avgRating: m.avgRating ?? m.avg_rating,
-  organizerId:
-    m.organizerId ?? m.organizer?.user_id ?? m.organizer?.userId ?? 0,
-});
+const normalizeMeeting = (m: any): Meeting => {
+  const max = m.maxParticipants ?? m.max_participants ?? 0;
+  const cur = m.currentParticipants ?? m.current_participants ?? 0;
+
+  return {
+    meetingId: m.meetingId ?? m.meeting_id,
+    title: m.title,
+    description: m.description,
+    category: m.category,
+    subcategory: m.subcategory,
+    locationName: m.locationName ?? m.location_name,
+    locationAddress: m.locationAddress ?? m.location_address ?? m.address, // ✅
+    meetingTime: m.meetingTime ?? m.meeting_time,
+    createdAt: m.createdAt ?? m.created_at, // ✅
+    maxParticipants: max,
+    currentParticipants: cur,
+    expectedCost: m.expectedCost ?? m.expected_cost,
+    vibe: m.vibe,
+    imageUrl: m.imageUrl ?? m.image_url,
+    avgRating: m.avgRating ?? m.avg_rating,
+    organizerId:
+      m.organizerId ?? m.organizer?.user_id ?? m.organizer?.userId ?? 0,
+    isFull: m.isFull ?? m.is_full ?? (max > 0 ? cur >= max : false), // ✅
+  };
+};
 
 export const useMeetingStore = create<MeetingStore>()(
   persist(
