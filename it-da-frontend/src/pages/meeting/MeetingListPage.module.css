@@ -1,0 +1,478 @@
+/* 페이지 전체 */
+.page {
+    background: #f8f9fa;
+    min-height: 100vh;
+}
+
+.header {
+    background: white;
+    border-bottom: 1px solid #e5e7eb;
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    width: 100%;
+    height: 64px;
+    display: flex;
+    justify-content: center;
+}
+
+
+.headerContent {
+    width: 100%;
+    max-width: 1200px;
+    padding: 0 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 1.5rem;
+}
+
+.backBtn {
+    background: #f3f4f6;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    color: #4b5563;
+    cursor: pointer;
+    white-space: nowrap;
+    margin: 0;
+}
+
+.logo {
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: #667eea;
+    margin: 0;
+    cursor: pointer;
+    flex-grow: 0;
+}
+
+/* 카테고리 헤더 */
+.categoryHeader {
+    margin-top: 0;
+    padding: 3rem 2rem;
+}
+
+.categoryContent {
+    max-width: 1200px;
+    margin: 0 auto;
+    text-align: center;
+}
+
+.categoryIcon {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+}
+
+.categoryTitle {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+}
+
+.categorySubtitle {
+    font-size: 1.1rem;
+    opacity: 0.9;
+}
+
+/* 컨테이너 */
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+/* 필터 */
+.filter {
+    background: white;
+    border-radius: 16px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+}
+
+.filterRow {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.filterRow:last-child {
+    margin-bottom: 0;
+}
+
+.filterLabel {
+    font-weight: 600;
+    min-width: 80px;
+}
+
+.filterChips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.chip {
+    padding: 0.5rem 1rem;
+    border: 2px solid #e9ecef;
+    border-radius: 20px;
+    background: white;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.3s;
+}
+
+.chip:hover {
+    border-color: #667eea;
+}
+
+.chip.active {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    border-color: transparent;
+}
+
+/* 툴바 */
+.toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+}
+
+.result {
+    color: #6c757d;
+    font-size: 1rem;
+}
+
+.result strong {
+    color: #667eea;
+}
+
+.toolbarRight {
+    display: flex;
+    gap: 1rem;
+}
+
+.select {
+    padding: 0.5rem 1rem;
+    border: 2px solid #e9ecef;
+    border-radius: 8px;
+    background: white;
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+
+.viewBtn {
+    padding: 0.5rem 1rem;
+    border: 2px solid #e9ecef;
+    background: white;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 1.2rem;
+    transition: all 0.3s;
+}
+
+.viewBtn:hover {
+    border-color: #667eea;
+}
+
+.viewBtn.active {
+    background: #667eea;
+    color: white;
+    border-color: #667eea;
+}
+
+/* 그리드 뷰 */
+.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 1.5rem;
+}
+
+.card {
+    background: white;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+}
+
+.image {
+    width: 100%;
+    height: 200px;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    position: relative;
+}
+
+.badge {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background: white;
+    padding: 0.3rem 0.8rem;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #667eea;
+}
+
+.content {
+    padding: 1.5rem;
+}
+
+.title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+    color: #212529;
+}
+
+.meta {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.metaItem {
+    color: #6c757d;
+    font-size: 0.85rem;
+}
+
+.tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.tag {
+    background: #f8f9fa;
+    color: #667eea;
+    padding: 0.3rem 0.8rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+}
+
+.stats {
+    display: flex;
+    justify-content: space-between;
+    padding-top: 1rem;
+    border-top: 1px solid #e9ecef;
+}
+
+.stat {
+    text-align: center;
+}
+
+.statValue {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #667eea;
+}
+
+.statLabel {
+    font-size: 0.75rem;
+    color: #6c757d;
+    margin-top: 0.2rem;
+}
+
+/* 리스트 뷰 */
+.list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.listItem {
+    background: white;
+    border-radius: 12px;
+    padding: 1.5rem;
+    display: flex;
+    gap: 1.5rem;
+    cursor: pointer;
+    transition: all 0.3s;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.listItem:hover {
+    transform: translateX(5px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.listLeft {
+    flex-shrink: 0;
+}
+
+.listImage {
+    width: 120px;
+    height: 120px;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    border-radius: 8px;
+    position: relative;
+}
+
+.listBadge {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    background: white;
+    padding: 0.25rem 0.6rem;
+    border-radius: 12px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #667eea;
+}
+
+.listContent {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.listTitle {
+    font-size: 1.2rem;
+    font-weight: 700;
+    margin-bottom: 0.75rem;
+    color: #212529;
+}
+
+.listMeta {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 0.75rem;
+    font-size: 0.9rem;
+    color: #6c757d;
+}
+
+.listTags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.listTag {
+    background: #f8f9fa;
+    color: #667eea;
+    padding: 0.25rem 0.75rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+}
+
+.listRight {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: space-between;
+    min-width: 100px;
+}
+
+.listStats {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    text-align: right;
+}
+
+.listStatItem {
+    font-size: 0.85rem;
+    color: #6c757d;
+}
+
+.listDday {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #667eea;
+    background: #f0f3ff;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+}
+
+/* Empty 상태 */
+.empty {
+    text-align: center;
+    padding: 4rem 2rem;
+    color: #6c757d;
+}
+
+.emptyIcon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+}
+
+/* ✅ 반응형 - 모바일에서는 오른쪽 텍스트 숨기기 */
+@media (max-width: 768px) {
+    .header {
+        grid-template-columns: auto 1fr auto;
+    }
+
+    .headerRight {
+        display: none; /* 모바일에서는 숨김 */
+    }
+
+    .container {
+        padding: 1rem;
+    }
+
+    .grid {
+        grid-template-columns: 1fr;
+    }
+
+    .listItem {
+        flex-direction: column;
+    }
+
+    .listImage {
+        width: 100%;
+        height: 150px;
+    }
+
+    .listRight {
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+    }
+
+    .listStats {
+        flex-direction: row;
+        gap: 1rem;
+    }
+
+    .toolbar {
+        flex-direction: column;
+        gap: 1rem;
+        align-items: flex-start;
+    }
+
+    .toolbarRight {
+        width: 100%;
+        justify-content: space-between;
+    }
+}
+
+@media (max-width: 1200px) {
+    .container {
+        padding: 1.5rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .filterRow {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .filterLabel {
+        margin-bottom: 0.5rem;
+    }
+}

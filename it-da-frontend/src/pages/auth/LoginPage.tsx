@@ -38,7 +38,7 @@ const LoginPage = () => {
     <div className="login-container">
       <div className="login-box">
         <h1 className="login-title">IT-DA</h1>
-        <p className="login-subtitle">취미메이트</p>
+        <p className="login-subtitle">IT-DA</p>
 
         <form onSubmit={handleSubmit} className="login-form">
           <input

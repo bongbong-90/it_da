@@ -137,3 +137,29 @@ export interface AIRecommendationResponse {
   matchScore?: number;
   predictedRating?: number;
 }
+
+// ✅ 상세 페이지용 확장 타입
+export interface MeetingDetail extends Meeting {
+  organizerUsername: string;
+  organizerProfileImage?: string;
+  locationAddress: string;
+  latitude: number;
+  longitude: number;
+  locationType?: "INDOOR" | "OUTDOOR";
+  timeSlot?: "MORNING" | "AFTERNOON" | "EVENING";
+  status?: "RECRUITING" | "FULL" | "CANCELLED" | "COMPLETED";
+  reviewCount: number;
+  createdAt: string;
+  isFull: boolean;
+  dDay: number;
+}
+
+// ✅ 리스트 응답 (API 응답 구조)
+export interface MeetingListResponse {
+  success: boolean;
+  message: string;
+  meetings: Meeting[];
+  totalCount: number;
+  currentPage?: number;
+  totalPages?: number;
+}

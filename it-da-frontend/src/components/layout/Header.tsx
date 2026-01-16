@@ -10,7 +10,7 @@ const Header = () => {
     <header className="header">
       <div className="header-content">
         <Link to="/" className="logo">
-          🍇 IT-DA 취미 메이트
+          🍇 IT-DA
         </Link>
 
         <nav className="nav-menu">

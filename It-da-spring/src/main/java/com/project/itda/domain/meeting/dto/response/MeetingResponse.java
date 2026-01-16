@@ -129,6 +129,11 @@ public class MeetingResponse {
     private Double avgRating;
 
     /**
+     * 평점 개수
+     */
+    private Integer ratingCount;
+
+    /**
      * 생성일
      */
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")

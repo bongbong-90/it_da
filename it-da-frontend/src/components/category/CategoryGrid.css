@@ -46,6 +46,32 @@
   color: #6c757d;
 }
 
+/* 전체 모임 카드 특별 스타일 */
+.category-card-all {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    border: none !important;
+}
+
+.category-card-all:hover {
+    transform: translateY(-8px) scale(1.02);
+    box-shadow: 0 12px 32px rgba(102, 126, 234, 0.4);
+}
+
+.category-card-all .category-name {
+    color: white !important;
+    font-weight: 700 !important;
+}
+
+.category-card-all .category-count {
+    color: rgba(255, 255, 255, 0.95) !important;
+    font-size: 0.85rem !important;
+}
+
+.category-card-all .category-icon {
+    filter: none !important;
+    font-size: 3.5rem !important;
+}
+
 /* 반응형 */
 @media (max-width: 768px) {
   .category-grid {

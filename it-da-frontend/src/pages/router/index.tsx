@@ -14,6 +14,9 @@ import MeetingCreatePage from "@/pages/meeting/MeetingCreatePage";
 import MeetingDetailPage from "@/pages/meeting/MeetingDetailPage";
 import { PreferenceGuard } from "@/components/auth/PreferenceGuard.tsx";
 import UserPreferenceSetupPage from "@/pages/auth/UserPreferenceSetupPage.tsx";
+import CategoryListPage from "@/pages/category/CategoryListPage";
+import CategoryDetailPage from "@/pages/category/CategoryDetailPage";
+import MeetingListPage from "@/pages/meeting/MeetingListPage";
 
 export const router = createBrowserRouter(
   [
@@ -59,29 +62,6 @@ export const router = createBrowserRouter(
             <AIMatchingPage />
           </ProtectedRoute>
         </PreferenceGuard>
-      ),
-    },
-    {
-      path: "/meetings",
-      element: (
-        <div
-          style={{
-            padding: "60px 40px",
-            textAlign: "center",
-            minHeight: "100vh",
-            background: "#f8f9fa",
-          }}
-        >
-          <h1 style={{ fontSize: "48px", marginBottom: "20px" }}>🔍</h1>
-          <h2
-            style={{ fontSize: "32px", marginBottom: "12px", color: "#212529" }}
-          >
-            모임 찾기
-          </h2>
-          <p style={{ fontSize: "16px", color: "#868e96" }}>
-            전체 모임 목록 페이지 (구현 예정)
-          </p>
-        </div>
       ),
     },
     {
@@ -132,6 +112,18 @@ export const router = createBrowserRouter(
     {
       path: "meetings/:meetingId",
       element: <MeetingDetailPage />,
+    },
+    {
+      path: "/category",
+      element: <CategoryListPage />,
+    },
+    {
+      path: "/category/:category",
+      element: <CategoryDetailPage />,
+    },
+    {
+      path: "/meetings",
+      element: <MeetingListPage />,
     },
   ],
   {

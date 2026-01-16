@@ -15,6 +15,10 @@ export interface User {
   status: UserStatus;
   createdAt: string;
   updatedAt: string;
+
+  // chatMemeberList 호환성 별칭
+  id: number;        // userId의 별칭
+  name: string;      // username의 별칭
 }
 
 // 회원가입 요청

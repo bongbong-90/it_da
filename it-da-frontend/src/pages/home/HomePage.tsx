@@ -135,12 +135,12 @@ const HomePage = () => {
             <h2 className="section-title">카테고리</h2>
             <button
               className="view-all"
-              onClick={() => navigate("/categories")}
+              onClick={() => navigate("/category")}
             >
               전체보기 →
             </button>
           </div>
-          <CategoryGrid />
+            <CategoryGrid limit={3} showAllCard={true} />
         </section>
       </div>
     </div>
