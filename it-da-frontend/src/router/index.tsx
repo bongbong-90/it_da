@@ -10,6 +10,8 @@ import PublicRoute from "./PublicRoute";
 import OAuth2CallbackPage from "@/pages/auth/OAuth2CallbackPage";
 import ChatRoomPage from "@/pages/chat/ChatRoomPage";
 import TestChatPage from "@/pages/chat/TestChatPage.tsx";
+import UserChatListPage from "@/pages/mypage/components/UserChatListPage";
+import UserChatRoomPage from "@/pages/mypage/components/UserChatRoomPage";
 import MeetingCreatePage from "@/pages/meeting/MeetingCreatePage";
 import MeetingDetailPage from "@/pages/meeting/MeetingDetailPage";
 import { PreferenceGuard } from "@/components/auth/PreferenceGuard.tsx";
@@ -159,6 +161,23 @@ export const router = createBrowserRouter(
     {
       path: "/meetings/:meetingId/edit",
       element: <MeetingEditPage />,
+    },
+    // ✅ 1:1 DM 채팅 (새로 추가)
+    {
+      path: "/user-chat",
+      element: (
+        <ProtectedRoute>
+          <UserChatListPage />
+        </ProtectedRoute>
+      ),
+    },
+    {
+      path: "/user-chat/:roomId",
+      element: (
+        <ProtectedRoute>
+          <UserChatRoomPage />
+        </ProtectedRoute>
+      ),
     },
   ],
   {
