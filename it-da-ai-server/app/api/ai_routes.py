@@ -753,14 +753,27 @@ async def ai_search(
     rid = str(uuid.uuid4())[:8]
     logger.info(f"[RID={rid}] 🔍 AI 검색 요청: user_id={request.user_id}, prompt='{request.user_prompt}'")
 
+    print("🔥🔥🔥 /search 엔드포인트 호출됨!")
+    logger.info(f"🔥🔥🔥 /search 엔드포인트 호출!")
+    logger.info(f"[RID={rid}] 🔍 AI 검색 요청: user_id={request.user_id}, prompt='{request.user_prompt}'")
+
     try:
+        # ✅ 여기도 추가
+        print(f"🔥🔥🔥 ai_service.get_ai_recommendations 호출 직전!")
+        logger.info(f"🔥🔥🔥 ai_service.get_ai_recommendations 호출 직전!")
+
         result = await ai_service.get_ai_recommendations(
             user_prompt=request.user_prompt,
             user_id=request.user_id,
             top_n=request.top_n
         )
 
+
         logger.info(f"✅ AI 검색 완료: {len(result['recommendations'])}개 추천")
+        # ✅ 완료 후에도
+        print(f"🔥🔥🔥 결과 받음: {len(result.get('recommendations', []))}개")
+        logger.info(f"✅ AI 검색 완료: {len(result['recommendations'])}개 추천")
+
         return result
 
     except Exception as e:
@@ -889,75 +902,3 @@ async def get_match_scores(req: MatchScoresRequest):
     # 높은 순으로 정렬(프론트에서 그대로 쓰기 좋게)
     items.sort(key=lambda x: x["matchPercentage"], reverse=True)
     return {"success": True, "userId": user_id, "items": items}
-
-
-@router.post("/match-scores")
-async def get_match_scores(req: MatchScoresRequest):
-    user_id = req.user_id
-    meeting_ids = [int(x) for x in req.meeting_ids if x is not None]
-
-    if not meeting_ids:
-        return {"success": True, "userId": user_id, "items": []}
-
-    preds = await model_loader.svd.predict_for_user_meetings(user_id, meeting_ids)
-    values = [float(v) for v in preds.values()]
-    n = len(values)
-
-    # 카드가 1개면 rating 기반
-    if n < 2:
-        items = []
-        for mid, r in preds.items():
-            mp = rating_to_match_score_nonlinear(float(r), center=3.6, temp=0.22)
-            items.append({
-                "meetingId": mid,
-                "predictedRating": round(float(r), 3),
-                "matchPercentage": int(mp),
-                "matchLevel": "MEDIUM"
-            })
-        return {"success": True, "userId": user_id, "items": items}
-
-    sorted_vals = sorted(values)
-
-    def percentile_midrank(x: float) -> float:
-        # 동점(mid-rank) 퍼센타일: (lt + 0.5*eq) / n
-        lt = 0
-        eq = 0
-        for v in sorted_vals:
-            if v < x:
-                lt += 1
-            elif v == x:
-                eq += 1
-        p = (lt + 0.5 * eq) / n
-
-        # 딱 0/1 나오는 걸 싫으면 살짝 클립만
-        eps = 0.5 / n
-        if p < eps: p = eps
-        if p > 1 - eps: p = 1 - eps
-        return p
-
-    items = []
-    for mid, r in preds.items():
-        r = float(r)
-        p = percentile_midrank(r)
-        p = max(0.0, min(1.0, 0.5 + (p - 0.5) * 2.2))  # stretch
-        match_pct = match_from_percentile(p, floor=5, ceil=99, gamma=3.0)
-
-        if match_pct >= 90:
-            lvl = "VERY_HIGH"
-        elif match_pct >= 80:
-            lvl = "HIGH"
-        elif match_pct >= 65:
-            lvl = "MEDIUM"
-        else:
-            lvl = "LOW"
-
-        items.append({
-            "meetingId": mid,
-            "predictedRating": round(r, 3),
-            "percentile": round(p, 3),
-            "matchPercentage": int(match_pct),
-            "matchLevel": lvl,
-        })
-
-    return {"success": True, "userId": user_id, "items": items}
-

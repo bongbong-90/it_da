@@ -8,7 +8,10 @@ from contextlib import asynccontextmanager
 from app.api.ai_routes import router as ai_router
 from app.models.model_loader import model_loader
 from app.core.logging import logger
+import logging
+logging.basicConfig(level=logging.INFO)
 
+print("🔥🔥🔥 FastAPI 시작! 버전 확인!")
 
 # ========================================
 # Lifespan Event Handler

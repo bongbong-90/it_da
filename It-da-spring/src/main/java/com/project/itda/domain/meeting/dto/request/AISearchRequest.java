@@ -17,6 +17,8 @@ public class AISearchRequest {
     private String category;  // "스포츠", "맛집", "카페" 등
     private String subcategory;  // "러닝", "한식" 등
     private String timeSlot;  // "morning", "afternoon", "evening"
+    // ✅ locationType 필드 추가
+    private String locationType;  // "INDOOR" 또는 "OUTDOOR"
     private String locationQuery;  // "강남", "홍대" 등
     private UserLocation userLocation;  // 사용자 위치
     private Double radius;        // ⭐ 추가

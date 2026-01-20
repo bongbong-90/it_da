@@ -8,6 +8,7 @@ import math
 import uuid
 from collections import Counter
 from typing import List, Dict, Optional
+import json
 
 import numpy as np
 
@@ -88,44 +89,33 @@ class AIRecommendationService:
     # Intent (문장 의도)
     # -------------------------
     def _detect_intent(self, user_prompt: str, parsed_query: dict) -> str:
-        t = (user_prompt or "").lower()
+          """
+          문장 의도 파악 - vibe 우선, location_type은 참고만
+          """
+          t = (user_prompt or "").lower()
+          location_type = parsed_query.get("location_type")
+          vibe = parsed_query.get("vibe", "")
 
-        quiet_words = ["조용", "쉬", "힐링", "편하게", "여유", "카페", "대화", "산책", "전시", "독서", "쉬고"]
-        active_words = ["러닝", "운동", "뛰", "배드민턴", "축구", "헬스", "등산", "클라이밍"]
+          # ✅ 1순위: 명시적 vibe 키워드
+          quiet_words = ["조용", "쉬", "힐링", "편하게", "여유", "잔잔", "차분", "평화"]
+          active_words = ["러닝", "운동", "뛰", "배드민턴", "축구", "헬스", "등산", "클라이밍", "격렬"]
 
-        if any(w in t for w in quiet_words):
-            return "QUIET"
-        if any(w in t for w in active_words):
-            return "ACTIVE"
+          # ✅ vibe 우선 체크
+          if any(w in t for w in quiet_words) or vibe in ["힐링", "여유로운", "조용한", "편안한", "잔잔한"]:
+              return "QUIET"
 
-        vibe = parsed_query.get("vibe")
-        if vibe in ["힐링", "여유로운"]:
-            return "QUIET"
-        return "NEUTRAL"
+          if any(w in t for w in active_words) or vibe in ["활기찬", "격렬한"]:
+              return "ACTIVE"
 
-    def _apply_intent_adjustment(self, intent: str, meeting: dict) -> float:
-        """
-        match_score에 더해지는 보정값.
-        너희 카테고리 체계에 맞춰 튜닝하면 됨.
-        """
-        cat = (meeting.get("category") or "")
-        sub = (meeting.get("subcategory") or "")
+          # ✅ 2순위: location_type (vibe 없을 때만)
+          if location_type == "INDOOR":
+              return "QUIET"
 
-        if intent == "QUIET":
-            # 스포츠는 강하게 패널티
-            if cat == "스포츠":
-                return -25.0
-            # 조용할만한 것들 보너스(너희 데이터에 맞춰 수정)
-            if cat in ["카페", "문화", "취미"] or sub in ["독서", "보드게임", "전시", "스터디"]:
-                return +15.0
+          if location_type == "OUTDOOR":
+              # ✅ 실외라도 활동이 명시 안 되면 NEUTRAL
+              return "NEUTRAL"
 
-        if intent == "ACTIVE":
-            if cat == "스포츠":
-                return +15.0
-            if cat in ["카페", "문화"]:
-                return -10.0
-
-        return 0.0
+          return "NEUTRAL"
 
     # -------------------------
     # Search payload builder (중요)
@@ -146,9 +136,17 @@ class AIRecommendationService:
             return "OUTDOOR"
         return None
 
-    def _to_spring_search_request(self, enriched_query: dict, user_ctx: dict) -> dict:
+    def _to_spring_search_request(self, enriched_query: dict, user_ctx: dict, user_prompt: str = "") -> dict:
         raw_keywords = enriched_query.get("keywords") or []
-        keywords = self._clean_keywords(raw_keywords)
+
+        # ✅ category와 중복되는 키워드 제거
+        category = enriched_query.get("category")
+        if category:
+            keywords = [k for k in raw_keywords if k.lower() != category.lower()]
+        else:
+            keywords = raw_keywords
+
+        keywords = self._clean_keywords(keywords)
 
         keyword = enriched_query.get("keyword")
         if not keyword and keywords:
@@ -159,16 +157,22 @@ class AIRecommendationService:
         lng = user_ctx.get("lng") or user_ctx.get("longitude")
 
         # ✅ locationQuery
-        location_query = enriched_query.get("locationQuery") or enriched_query.get("location_query")
+        location_query = enriched_query.get("location_query") or enriched_query.get("locationQuery")
 
         # ✅ "근처/주변/집" 의도
-        near_me = self._is_near_me_phrase(location_query)
+        near_me = self._is_near_me_phrase(location_query) or self._is_near_me_phrase(user_prompt)  # ✅ user_prompt도 체크
 
         # ✅ timeSlot: "유저 선호" 절대 섞이지 않게!
-        # - enriched_query에 timeSlot이 들어가도 무시(=enrich 단계에서 섞였을 수 있음)
         conf = float(enriched_query.get("confidence", 0) or 0)
-        gpt_ts = enriched_query.get("time_slot")  # 오직 snake만 본다 (중요)
-        time_slot = self._normalize_timeslot(gpt_ts) if (gpt_ts and conf >= 0.9) else None
+        # ✅ 해결: "아침/점심/저녁" 같은 명확한 시간 표현은 conf 낮아도 필터 적용
+        gpt_ts = enriched_query.get("time_slot")
+
+        # conf 0.6 이상이고 time_slot이 있으면 무조건 필터링
+        time_slot = self._normalize_timeslot(gpt_ts) if (gpt_ts and conf >= 0.6) else None  # 0.85 → 0.6
+
+        # ✅ locationType: GPT가 파싱한 것만 사용 (유저 선호 섞지 않기!)
+        gpt_location_type = enriched_query.get("location_type")
+        location_type = self._normalize_location_type(gpt_location_type) if gpt_location_type else None
 
         payload = {
             "category": enriched_query.get("category"),
@@ -177,7 +181,9 @@ class AIRecommendationService:
             # ✅ GPT time_slot만, conf 높을 때만
             "timeSlot": time_slot,
 
-            "vibe": enriched_query.get("vibe"),
+            # ✅ locationType 추가 - Spring에서 필터링
+            "locationType": location_type,
+
             "keywords": keywords,
 
             # ✅ userLocation은 항상 보내도 됨 (거리 계산용)
@@ -190,13 +196,16 @@ class AIRecommendationService:
             "maxCost": enriched_query.get("maxCost") or enriched_query.get("max_cost"),
         }
 
-        # ✅ radius는 “근처 의도일 때만” 포함
+        logger.info(f"[PAYLOAD_DEBUG] category={payload.get('category')} subcategory={payload.get('subcategory')}")
+
+        # ✅ radius는 "근처 의도일 때만" 포함
         if near_me:
             payload["radius"] = float(enriched_query.get("radius") or 10.0)
 
         # 로그
         logger.info(
-            f"[PAYLOAD] near_me={near_me} userLocation={payload.get('userLocation')} "
+            f"[PAYLOAD] near_me={near_me} locationType={location_type} "
+            f"userLocation={payload.get('userLocation')} "
             f"radius={payload.get('radius', None)} timeSlot={payload.get('timeSlot')}"
         )
         logger.info(f"[PAYLOAD_KEYWORDS] raw={raw_keywords} -> cleaned={keywords}")
@@ -212,10 +221,13 @@ class AIRecommendationService:
     # -------------------------
     # Step 4: candidate search + relaxation
     # -------------------------
-    async def _search_meetings(self, enriched_query: dict, user_context: dict) -> list[dict]:
+    async def _search_meetings(self, enriched_query: dict, user_context: dict, user_prompt: str = "") -> list[dict]:
         try:
-            payload = self._to_spring_search_request(enriched_query, user_context)
+            payload = self._to_spring_search_request(enriched_query, user_context, user_prompt)
             logger.info(f"[PAYLOAD_FULL] {payload}")
+
+            logger.info(f"[SEARCH_REQUEST] URL={self.spring_boot_url}/api/meetings/search")
+            logger.info(f"[SEARCH_PAYLOAD] {json.dumps(payload, ensure_ascii=False)}")  # ← import json 필요
 
             async with httpx.AsyncClient(timeout=10.0) as client:
                 response = await client.post(
@@ -223,9 +235,19 @@ class AIRecommendationService:
                     json=payload
                 )
 
+            logger.info(f"[SEARCH_RESPONSE] status={response.status_code}")
+
             if response.status_code == 200:
                 result = response.json()
-                return result.get("meetings", [])
+                meetings = result.get("meetings", [])
+
+                # ✅ 추가: Spring 응답 확인
+                logger.info(f"📦 Spring 응답: {len(meetings)}개 모임 받음")
+                if meetings:
+                    ids = [m.get('meeting_id') or m.get('meetingId') for m in meetings[:5]]
+                    logger.info(f"🔝 상위 5개 ID: {ids}")
+
+                return meetings
             else:
                 logger.warning(f"⚠️ 모임 검색 실패: {response.status_code} body={response.text}")
                 return []
@@ -235,7 +257,8 @@ class AIRecommendationService:
 
     from collections import Counter
 
-    async def _search_with_relaxation(self, base_query: dict, user_context: dict, trace_steps: list) -> list[dict]:
+    async def _search_with_relaxation(self, base_query: dict, user_context: dict, trace_steps: list,
+                                      user_prompt: str = "") -> list[dict]:
         """
         - confidence 기반 초기 필터 강도 조절
         - relax 우선순위: locationQuery -> vibe -> timeSlot -> keywords -> subcategory -> (마지막) category
@@ -245,6 +268,9 @@ class AIRecommendationService:
 
         conf = float(base_query.get("confidence", 0) or 0)
 
+        # ✅ 시작 로그
+        logger.info(f"🔥 [RELAX_START] conf={conf:.2f}, base_query={base_query}")
+
         def drop_keys(q: dict, *keys):
             qq = dict(q)
             for k in keys:
@@ -252,7 +278,7 @@ class AIRecommendationService:
             return qq
 
         def norm(q: dict):
-            # 키 이름 흔들림 방지 (너 코드에 time_slot/timeSlot 섞여있어서)
+            # 키 이름 흔들림 방지
             qq = dict(q)
             if "time_slot" in qq and "timeSlot" not in qq:
                 qq["timeSlot"] = qq.pop("time_slot")
@@ -260,14 +286,22 @@ class AIRecommendationService:
 
         async def _try(label: str, q: dict, level: int):
             q = norm(q)
-            meetings = await self._search_meetings(q, user_context)
+
+            # ✅ API 호출 전 로그
+            logger.info(f"🔥 [RELAX_{level}] {label} 시작")
+            logger.info(f"🔥 [RELAX_{level}] query={q}")
+
+            meetings = await self._search_meetings(q, user_context, user_prompt)  # ✅ 추가
             meetings = meetings or []
+
+            # ✅ API 호출 후 로그
+            logger.info(f"🔥 [RELAX_{level}] {label} 완료: {len(meetings)}개 받음")
+
             trace_steps.append({
                 "level": level,
                 "label": label,
                 "payload": self._to_spring_search_request(q, user_context),
                 "count": len(meetings),
-                # 디버깅용(원하면 지워도 됨)
                 "cats": dict(Counter((m.get("category"), m.get("subcategory")) for m in meetings)) if meetings else {},
             })
             return meetings
@@ -279,7 +313,7 @@ class AIRecommendationService:
         # -----------------------
         q0 = dict(base_query)
 
-        # conf 낮으면 "세부"만 미리 뺌 (category/location은 건드리지 마!)
+        # conf 낮으면 "세부"만 미리 뺌
         if conf < 0.70:
             q0 = drop_keys(q0, "subcategory")
         if conf < 0.85:
@@ -288,46 +322,43 @@ class AIRecommendationService:
         # ✅ L0
         cands = await _try("L0(conf 반영)", q0, 0)
         if cands:
-            # category 가드: 원하는 category가 있었는데 결과가 전부 다른 category면 재시도
+            # category 가드
             if base_cat and all((m.get("category") or "").strip() != base_cat for m in cands):
-                q_fix = drop_keys(q0, "location_query", "locationQuery")  # 지역 버리고 category 유지
+                q_fix = drop_keys(q0, "location_query", "locationQuery")
                 c2 = await _try("L0-guard(location 제거, category 유지)", q_fix, 1)
                 if c2:
                     return c2
             return cands
 
         # -----------------------
-        # 2) relax plan (요청 수 컨트롤)
+        # 2) relax plan
         # -----------------------
-        # 핵심: category는 맨 마지막
-        # locationQuery(지역) -> vibe -> timeSlot -> keywords -> subcategory -> category
         if conf >= 0.90:
             plans = [
                 ("L1 locationQuery 제거", ("location_query", "locationQuery")),
                 ("L2 vibe 제거", ("vibe",)),
                 ("L3 timeSlot 제거", ("time_slot", "timeSlot")),
-                ("L4 keywords 제거", ("keywords",)),
-                ("L5 subcategory 제거", ("subcategory",)),
+                ("L4 subcategory 제거", ("subcategory",)),
+                ("L5 keywords 제거", ("keywords", "keyword")),
                 ("L6 category 제거", ("category",)),
             ]
         elif conf >= 0.75:
             plans = [
                 ("L1 locationQuery 제거", ("location_query", "locationQuery")),
-                ("L2 timeSlot 제거", ("time_slot", "timeSlot")),
-                ("L3 subcategory 제거", ("subcategory",)),
-                ("L4 keywords 제거", ("keywords",)),
-                ("L5 category 제거", ("category",)),
+                ("L2 subcategory 제거", ("subcategory",)),
+                ("L3 keywords 제거", ("keywords", "keyword")),
+                ("L4 category 제거", ("category",)),
             ]
         else:
-            # 낮은 conf: 이미 넓게 시작했으니 2~3번만
             plans = [
                 ("L1 locationQuery 제거", ("location_query", "locationQuery")),
-                ("L2 keywords 제거", ("keywords",)),
-                ("L3 category 제거", ("category",)),
+                ("L2 keywords 제거", ("keywords", "keyword")),
+                ("L3 subcategory 제거", ("subcategory",)),
+                ("L4 category 제거", ("category",)),
             ]
 
         # -----------------------
-        # 3) relax 순차 수행 + category 가드
+        # 3) relax 순차 수행
         # -----------------------
         current = dict(q0)
         level = 1
@@ -336,9 +367,9 @@ class AIRecommendationService:
             cands = await _try(label, qn, level)
 
             if cands:
-                # category 가드: base_cat이 있는데 결과가 전부 다른 카테고리면 "지역 제거 + category 유지" 한번 더
+                # category 가드
                 if base_cat and all((m.get("category") or "").strip() != base_cat for m in cands):
-                    q_fix = drop_keys(qn, "location_query", "locationQuery")  # 지역 버리고 category 유지
+                    q_fix = drop_keys(qn, "location_query", "locationQuery")
                     c2 = await _try(f"{label}-guard(location 제거, category 유지)", q_fix, level + 1)
                     if c2:
                         return c2
@@ -347,69 +378,163 @@ class AIRecommendationService:
             current = qn
             level += 1
 
+        logger.warning("🔥 [RELAX_END] 모든 단계 실패 - 빈 리스트 반환")
         return []
+
+    def _normalize_query_taxonomy(self, q: dict) -> dict:
+        """
+        너희 DB 카테고리 체계 기준으로 category/subcategory 교정.
+        categories = ['스포츠','맛집','카페','문화예술','스터디','취미활동','소셜']
+        """
+        VALID_CATS = {"스포츠", "맛집", "카페", "문화예술", "스터디", "취미활동", "소셜"}
+
+        SUB_TO_CAT = {
+            # 스포츠
+            "러닝": "스포츠", "축구": "스포츠", "배드민턴": "스포츠", "등산": "스포츠",
+            "요가": "스포츠", "사이클링": "스포츠", "클라이밍": "스포츠",
+
+            # 맛집
+            "한식": "맛집", "중식": "맛집", "일식": "맛집", "양식": "맛집",
+            "이자카야": "맛집", "파인다이닝": "맛집",
+
+            # 카페
+            "카페투어": "카페", "브런치": "카페", "디저트": "카페", "베이커리": "카페", "티하우스": "카페",
+
+            # 문화예술
+            "전시회": "문화예술", "공연": "문화예술", "갤러리": "문화예술", "공방체험": "문화예술",
+            "사진촬영": "문화예술", "버스킹": "문화예술",
+
+            # 스터디
+            "영어회화": "스터디", "독서토론": "스터디", "코딩": "스터디",
+            "재테크": "스터디", "자격증": "스터디", "세미나": "스터디",
+
+            # 취미활동
+            "그림": "취미활동", "베이킹": "취미활동", "쿠킹": "취미활동",
+            "플라워": "취미활동", "캘리그라피": "취미활동", "댄스": "취미활동",
+
+            # 소셜
+            "보드게임": "소셜", "방탈출": "소셜", "볼링": "소셜",
+            "당구": "소셜", "노래방": "소셜", "와인바": "소셜",
+        }
+
+        qq = dict(q)
+
+        cat = (qq.get("category") or "").strip()
+        sub = (qq.get("subcategory") or "").strip()
+
+        # 1) subcategory가 있으면 그걸 최우선으로 category 교정
+        if sub:
+            mapped = SUB_TO_CAT.get(sub)
+            if mapped:
+                qq["category"] = mapped
+            else:
+                # subcategory는 있는데 매핑이 없으면 과필터 방지로 category 제거
+                qq.pop("category", None)
+
+        # 2) category 유효성 체크
+        cat2 = (qq.get("category") or "").strip()
+        if cat2 and cat2 not in VALID_CATS:
+            # 이상한 category(예: '소셜'로 잘못 찍힌 '스포츠' 등) 들어오면 제거
+            qq.pop("category", None)
+
+        return qq
 
     # -------------------------
     # Main pipeline
     # -------------------------
+    """
+    get_ai_recommendations() 수정 버전
+    NoneType 에러 수정 - fallback 로직 정리
+    """
+
+    # AIRecommendationService.py의 get_ai_recommendations() 메서드 수정
+
     async def get_ai_recommendations(self, user_prompt: str, user_id: int, top_n: int = 5) -> Dict:
         rid = str(uuid.uuid4())[:8]
         logger.info(f"[RID={rid}] 🔍 AI 검색 요청: user_id={user_id}, prompt='{user_prompt}'")
 
         try:
-            # Step 1
+            # Step 1: GPT 파싱
             logger.info(f"[Step 1] GPT 프롬프트 파싱: {user_prompt}")
             parsed_query = await self.gpt_service.parse_search_query(user_prompt)
 
-            # Step 2
+            # Taxonomy 교정
+            parsed_query = self._normalize_query_taxonomy(parsed_query)
+            parsed_query = self._post_fix(user_prompt, parsed_query)
+
+            # Step 2: 사용자 컨텍스트
             logger.info(f"[Step 2] 사용자 컨텍스트 조회: user_id={user_id}")
             user_context = await self._get_user_context(user_id)
             logger.info(f"[CTX] lat={user_context.get('latitude')} lng={user_context.get('longitude')}")
 
+            # ✅ 정보 부족 체크
             kw = parsed_query.get("keywords") or []
             conf = float(parsed_query.get("confidence", 0) or 0)
             cat = parsed_query.get("category")
             sub = parsed_query.get("subcategory")
             vibe = parsed_query.get("vibe")
             ts = parsed_query.get("time_slot")
+            loc_q = parsed_query.get("location_query")
 
-            # ✅ 정보 거의 없는 입력(예: "집에서", "그냥", "추천") 방지
-            if conf < 0.6 and len(kw) == 0 and not cat and not sub and not vibe and not ts:
-                card = self._make_clarification_card(user_prompt, parsed_query, user_context)
+            # ✅ 초애매 케이스: SVD + Clarification 함께 제공
+            if conf < 0.6 and len(kw) == 0 and not cat and not sub and not vibe and not ts and not loc_q:
+                logger.warning(f"⚠️ 초애매 검색어 감지 (conf={conf:.2f}): '{user_prompt}' → SVD fallback + clarification")
+
+                # SVD 기반 추천 5개
+                svd_data = await self._fallback_svd_recommendation(
+                    user_id, user_prompt, parsed_query, top_n, user_context
+                )
+
+                # Clarification 카드 1개 추가
+                clarification_card = self._make_clarification_card(user_prompt, parsed_query, user_context)
+
+                # ✅ SVD 추천 5개 + clarification 1개 = 총 6개
+                recommendations = svd_data.get("recommendations", [])[:top_n]
+                recommendations.append(clarification_card)
+
                 return {
                     "user_prompt": user_prompt,
                     "parsed_query": parsed_query,
-                    "total_candidates": 0,
-                    "recommendations": [card],
+                    "total_candidates": svd_data.get("total_candidates", 0),
+                    "recommendations": recommendations,  # ✅ 6개
                     "search_trace": {
                         "steps": [],
                         "final_level": 0,
-                        "final_label": "EARLY_CLARIFY",
-                        "fallback": False
+                        "final_label": "SVD_FALLBACK_WITH_CLARIFY",
+                        "fallback": True
                     }
                 }
 
-            # Step 3
+            # Step 3: 쿼리 보강
             enriched_query = await self.gpt_service.enrich_with_user_context(parsed_query, user_context)
 
-            # Step 4
+            # Step 4: 검색
             trace_steps: list = []
-
-            # ✅ L0를 미리 완화해서 시도 횟수를 줄임
             base_query = self._pre_relax_query_by_conf(enriched_query)
 
-            candidate_meetings = await self._search_with_relaxation(base_query, user_context, trace_steps)
+            # ✅ 디버깅 로그
+            logger.info(f"🔥🔥🔥 [DEBUG] base_query 확인: {base_query}")
+            logger.info(f"🔥🔥🔥 [DEBUG] _search_with_relaxation 호출 직전!")
 
+            candidate_meetings = await self._search_with_relaxation(base_query, user_context, trace_steps,
+                                                                    user_prompt)  # ✅ 추가
+
+            # ✅ 여기 추가!
+            logger.info(f"🔥🔥🔥 [DEBUG] _search_with_relaxation 완료!")
+            logger.info(f"🔥🔥🔥 [DEBUG] candidate_meetings 개수: {len(candidate_meetings) if candidate_meetings else 0}")
+
+            # ✅ 검색 결과 없으면 SVD fallback
             if not candidate_meetings:
                 logger.warning("⚠️ 검색 결과 없음 - SVD 기반 추천으로 대체")
                 data = await self._fallback_svd_recommendation(user_id, user_prompt, parsed_query, top_n, user_context)
 
-
                 # fallback도 intent 보정
-                intent = self._detect_intent(user_prompt, parsed_query)
+                intent = self._detect_intent(user_prompt, enriched_query)
 
                 for rec in data.get("recommendations", []):
-                    rec["match_score"] = int(max(0, min(100, rec.get("match_score", 0) + self._apply_intent_adjustment(intent, rec))))
+                    adjustment = self._apply_intent_adjustment(intent, rec, enriched_query)
+                    new_score = rec.get("match_score", 0) + adjustment
+                    rec["match_score"] = int(max(0, min(100, new_score)))
                     rec["intent"] = intent
 
                 data["search_trace"] = {
@@ -420,26 +545,45 @@ class AIRecommendationService:
                 }
                 return data
 
-
+            # Step 5: AI 점수 계산
             logger.info(f"[Step 5] AI 점수 계산: {len(candidate_meetings)}개 모임")
 
-            intent = self._detect_intent(user_prompt, parsed_query)  # ✅ 먼저 만들고
+            intent = self._detect_intent(user_prompt, enriched_query)
 
             scored_meetings = await self._score_meetings(
-                user_id, user_context, candidate_meetings, parsed_query, intent
+                user_id, user_context, candidate_meetings, enriched_query, intent
             )
 
-            # ✅ intent 보정(룰 기반)
+            # ✅ intent 보정 적용 + 계층별 상한
+            n_total = len(scored_meetings)
+
             for m in scored_meetings:
-                m["match_score"] = int(max(0, min(100, m["match_score"] + self._apply_intent_adjustment(intent, m))))
+                adjustment = self._apply_intent_adjustment(intent, m, enriched_query)
+                new_score = m["match_score"] + adjustment
+
+                # ✅ 계층별 상한 적용
+                if n_total == 1:
+                    new_score = min(new_score, 75)  # 1개: 75%
+                elif n_total <= 5:
+                    new_score = min(new_score, 88)  # 2~5개: 88%
+                elif n_total <= 20:
+                    new_score = min(new_score, 90)  # 6~20개: 90%
+                else:
+                    new_score = min(new_score, 92)  # 21개+: 92%
+
+                m["match_score"] = int(max(0, min(100, new_score)))
                 m["intent"] = intent
 
+                # ✅ 디버깅용 로그 (상위 5개만)
+                if m["match_score"] >= sorted([m2["match_score"] for m2 in scored_meetings], reverse=True)[
+                    min(4, n_total - 1)]:
+                    logger.info(
+                        f"[TOP_SCORE] id={m.get('meeting_id')}, before={m['match_score'] - int(adjustment)}, adj={adjustment:.1f}, final={m['match_score']}")
 
-
-            # Step 6
+            # Step 6: 상위 N개 선택
             top_recommendations = sorted(scored_meetings, key=lambda x: x["match_score"], reverse=True)[:top_n]
 
-            # Step 7
+            # Step 7: Reasoning
             for rec in top_recommendations:
                 if (not parsed_query.get("keywords")) or parsed_query.get("confidence", 0) < 0.6:
                     rec["reasoning"] = self._fallback_reasoning(rec, parsed_query)
@@ -460,7 +604,7 @@ class AIRecommendationService:
             }
 
         except Exception as e:
-            logger.error(f"❌ AI 추천 실패: {e}")
+            logger.error(f"❌ AI 추천 실패: {e}", exc_info=True)  # ✅ exc_info 추가로 스택트레이스 출력
             raise
 
     # -------------------------
@@ -470,6 +614,15 @@ class AIRecommendationService:
     # - /search 랭킹: ranker로 match_score 만들고 정렬
     # - UI용 predicted_rating: (선택) regressor로 같이 넣어줌
     # - 기존 key_points 유지
+    """
+    완전한 _score_meetings() 메서드
+    1개 후보 절대 상한 78%
+    """
+
+    """
+    _score_meetings() 최종 수정 버전
+    100% 절대 방지 - 동적 상한 대폭 하향
+    """
 
     async def _score_meetings(
             self,
@@ -492,33 +645,34 @@ class AIRecommendationService:
 
         use_regressor_for_rating = bool(model_loader.regressor and model_loader.regressor.is_loaded())
 
-        # ✅ confidence (0~1)
         conf = float(parsed_query.get("confidence", 0) or 0)
 
         def dynamic_ceil(n: int, conf: float) -> int:
-            # 후보 수가 적을수록 상한이 낮아야 "그럴듯"
-            if n <= 2:
-                base = 78
+            if n == 1:
+                return 75
+            elif n == 2:
+                return 79
             elif n == 3:
-                base = 82
+                return 82
             elif n <= 5:
-                base = 86
+                return 85
             elif n <= 10:
-                base = 90
+                return 87
+            elif n <= 50:
+                return 88  # ✅ 89 → 88
             else:
-                base = 92
+                return 89  # ✅ 90 → 89
 
-            # confidence 낮을수록 상한 깎기 (최대 12점 정도)
-            penalty = int(round((1.0 - max(0.0, min(1.0, conf))) * 12))
-            return max(70, base - penalty)
+        user_time_pref = (
+                parsed_query.get("user_time_preference")
+                or pick(user_context, "time_preference", "timePreference", default=None)
+        )
 
         user = {
             "lat": pick(user_context, "lat", "latitude", default=None),
             "lng": pick(user_context, "lng", "longitude", default=None),
             "interests": pick(user_context, "interests", default=""),
-            "time_preference": self._normalize_timeslot(
-                pick(user_context, "time_preference", "timePreference", default=None)
-            ),
+            "time_preference": self._normalize_timeslot(user_time_pref),
             "user_location_pref": pick(user_context, "user_location_pref", "userLocationPref", default=None),
             "budget_type": self._normalize_budget_for_model(
                 pick(user_context, "budget_type", "budgetType", default="value")
@@ -552,6 +706,7 @@ class AIRecommendationService:
 
         # ✅ 동적 상한
         ceil = dynamic_ceil(n, conf)
+        logger.info(f"[SCORE] n={n}, conf={conf:.2f}, ceil={ceil}")
 
         # 2) optional rating
         rating_list = None
@@ -560,15 +715,31 @@ class AIRecommendationService:
                 preds = model_loader.regressor.predict(X)
                 rating_list = [float(v) for v in preds]
             except Exception as e:
-                logger.warning(f"⚠️ regressor rating 예측 실패. rating 없이 진행: {e}")
+                logger.warning(f"⚠️ regressor rating 예측 실패: {e}")
                 rating_list = None
 
         # 3) match_score 계산
         match_scores = [55] * n
 
-        if n <= 10:
-            # ✅ 소수 후보는 "등수 + raw 간격" 기반 (100% 방지)
-            base = [90, 84, 79, 74, 69, 65, 62, 60, 58, 56]
+        if n == 1:
+            # 1개일 때는 보수적
+            s = raw_list[0]
+
+            base_score = 1.0 / (1.0 + math.exp(-s * 0.25))
+            base_score = 58 + base_score * 18  # 58~76
+
+            conf_bonus = conf * 4
+
+            ms = base_score + conf_bonus
+            ms = max(62, min(75, ms))  # ✅ 78 → 75
+
+            match_scores[0] = int(round(ms))
+            logger.info(
+                f"[SCORE_1개] raw={s:.3f}, base={base_score:.1f}, conf={conf:.2f}, bonus={conf_bonus:.1f}, final={match_scores[0]}")
+
+        elif n <= 10:
+            # 2~10개: 1등도 하향
+            base = [80, 76, 72, 68, 65, 62, 60, 58, 56, 54]  # ✅ 83→80 하향
             order = sorted(range(n), key=lambda i: raw_list[i], reverse=True)
 
             top = raw_list[order[0]]
@@ -577,21 +748,13 @@ class AIRecommendationService:
 
             for rank, i in enumerate(order):
                 b = base[rank] if rank < len(base) else 55
-
-                # top=1, bottom=0
                 t = (raw_list[i] - bottom) / span
 
-                # -3 ~ +3 정도만 흔들어주기
-                adj = (t - 0.5) * 6.0
+                adj = (t - 0.5) * 4.0
 
                 ms = b + adj
-
-                # 바닥/상한 기본 캡
-                ms = max(52, min(92, ms))
-
-                # ✅ confidence+n 기반 동적 상한 적용
+                ms = max(52, min(85, ms))  # ✅ 88 → 85
                 ms = min(ms, ceil)
-
                 match_scores[i] = int(round(ms))
 
         else:
@@ -599,13 +762,8 @@ class AIRecommendationService:
             sorted_vals = sorted(raw_list)
 
             def percentile_midrank(x: float) -> float:
-                lt = 0
-                eq = 0
-                for v in sorted_vals:
-                    if v < x:
-                        lt += 1
-                    elif v == x:
-                        eq += 1
+                lt = sum(1 for v in sorted_vals if v < x)
+                eq = sum(1 for v in sorted_vals if v == x)
                 p = (lt + 0.5 * eq) / n
                 eps = 0.5 / n
                 if p < eps:
@@ -615,17 +773,59 @@ class AIRecommendationService:
                 return p
 
             for i, s in enumerate(raw_list):
-                p = percentile_midrank(float(s))  # 0~1
-                p = max(0.0, min(1.0, 0.5 + (p - 0.5) * 2.0))  # stretch 약하게
+                p = percentile_midrank(float(s))
 
-                ms = match_from_percentile(p, floor=52, ceil=92, gamma=1.5)
-                ms = min(ms, ceil)  # ✅ 동적 상한
+                # ✅ 동점 방지: raw score에 미세한 노이즈 추가
+                noise = (i * 0.001)  # 0.001, 0.002, 0.003...
+                p_adjusted = p + noise
+                p_adjusted = max(0.0, min(1.0, p_adjusted))
+
+                # Stretch & match_from_percentile
+                p_final = max(0.0, min(1.0, 0.5 + (p_adjusted - 0.5) * 1.2))
+                ms = match_from_percentile(p_final, floor=50, ceil=86, gamma=1.3)
+                ms = min(ms, ceil)
                 match_scores[i] = int(ms)
 
-        # 4) 결과 구성
+            # 4) 결과 구성 부분에서 보정 추가
         results = []
         for idx, (m, feat, s) in enumerate(zip(valid_candidates, feats, raw_list)):
             ms = int(match_scores[idx])
+
+            # ✅ 1) 시간대 매칭 보너스 (핵심!)
+            requested_ts = parsed_query.get("time_slot")
+            meeting_ts = m.get("time_slot")
+
+            if requested_ts and meeting_ts:
+                req_normalized = self._normalize_timeslot(requested_ts)
+                meet_normalized = self._normalize_timeslot(meeting_ts)
+
+                if req_normalized == meet_normalized:
+                    ms += 12  # 정확히 일치
+                elif self._is_adjacent_timeslot(req_normalized, meet_normalized):
+                    # ✅ 수정: 인접 시간대 보너스 약화 (+5 → +2)
+                    ms += 2  # 기존 +5
+                    logger.info(f"[TIME_ADJACENT] id={m.get('meeting_id')}, +2")
+                else:
+                    ms -= 20  # 완전 불일치
+                    logger.info(
+                        f"[TIME_MISMATCH] id={m.get('meeting_id')}, req={req_normalized}, meet={meet_normalized}, -20"
+                    )
+
+            # 2) location_query 보정 (기존 코드)
+            location_query = parsed_query.get("location_query")
+            if location_query:
+                meeting_loc = str(m.get("location_name", "")).lower()
+                query_loc = str(location_query).lower()
+
+                if query_loc in meeting_loc:
+                    ms += 5
+                    logger.info(f"[LOC_MATCH] {meeting_loc} 포함 {query_loc}: +5")
+                elif any(keyword in meeting_loc for keyword in ["구", "역"]):
+                    ms -= 3
+                    logger.info(f"[LOC_BROAD] {meeting_loc} 광역: -3")
+
+            # 최종 점수
+            ms = int(max(0, min(100, ms)))
 
             if ms >= 88:
                 lvl = "VERY_HIGH"
@@ -921,28 +1121,27 @@ class AIRecommendationService:
 
     def _pre_relax_query_by_conf(self, q: dict) -> dict:
         """
-        L0 자체를 confidence 기반으로 완화해서,
-        relaxation 단계가 과도하게 여러 번 돌지 않게 함.
+        L0 자체를 confidence 기반으로 완화
+        ✅ category는 0.5 이상이면 유지하도록 완화
         """
         conf = float(q.get("confidence", 0) or 0)
         qq = dict(q)
 
-        # 0.7 미만이면 subcategory는 너무 공격적 → L0에서 제거
+        # ✅ 0.5 → 0.5로 하향 (GPT가 0.5~0.6으로 주는 경우 많음)
+        if conf < 0.5:  # ← 0.65 → 0.5
+            qq.pop("category", None)
+
+        # subcategory는 0.7 미만이면 제거 (기존 유지)
         if conf < 0.7:
             qq.pop("subcategory", None)
 
-        # 0.6 미만이면 vibe는 제거
-        if conf < 0.6:
+        if conf < 0.65:
             qq.pop("vibe", None)
 
-        # time_slot은 너가 이미 0.9 이상일 때만 쓰기로 했으니 유지
+        # time_slot은 0.9 이상일 때만 (기존 유지)
         if conf < 0.9:
             qq.pop("time_slot", None)
             qq.pop("timeSlot", None)
-
-        # 0.45 미만이면 category도 제거하고 keyword 위주로 넓게
-        if conf < 0.45:
-            qq.pop("category", None)
 
         return qq
 
@@ -995,10 +1194,16 @@ class AIRecommendationService:
             return []
 
         stop = {
-            "하고싶어", "하고", "싶어", "원해", "추천", "해주세요", "해줘",
-            "그냥", "좀", "한번", "같이",
-            "밖에서", "집에서", "근처", "주변", "요즘",
-            "뛰어놀고",  # 필요하면 빼도 됨(러닝이면 살리고 싶을 수도)
+            # 요청/추임새
+            "추천", "추천해줘", "추천해주세요", "해줘", "해주세요",
+            "그냥", "좀", "한번", "같이", "요즘",
+
+            # 애매 프롬프트 전용 (핵심)
+            "갈만한곳", "갈만한", "갈곳", "가볼만한", "어디", "뭐하지", "뭐할까", "심심해",
+            "회사", "퇴근", "끝나고", "퇴근후", "퇴근하고", "끝나면",
+
+            # 범용 위치
+            "근처", "주변", "집", "집근처", "내근처",
         }
 
         cleaned = []
@@ -1006,13 +1211,14 @@ class AIRecommendationService:
             if not k:
                 continue
             w = str(k).strip()
+            w = w.replace(" ", "")
             if len(w) < 2:
                 continue
             if w in stop:
                 continue
             cleaned.append(w)
 
-        # ✅ 중복 제거(순서 유지)
+        # 중복 제거(순서 유지)
         seen = set()
         out = []
         for w in cleaned:
@@ -1021,11 +1227,250 @@ class AIRecommendationService:
                 seen.add(w)
         return out
 
+    def _is_ambiguous_prompt(self, user_prompt: str, parsed_query: dict) -> bool:
+        text = (user_prompt or "").lower()
+        conf = float(parsed_query.get("confidence", 0) or 0)
+
+        ambiguous_phrases = [
+            "갈만한곳", "가볼만한", "뭐하지", "뭐할까", "심심", "추천", "아무거나",
+            "퇴근", "회사끝", "끝나고", "퇴근후"
+        ]
+
+        # 1) confidence 낮고
+        if conf <= 0.45:
+            # 2) 활동 명사(카페/러닝/전시/보드게임 등)가 없다면 애매로 본다
+            has_category = bool(parsed_query.get("category"))
+            kws = parsed_query.get("keywords") or []
+            # keyword도 의미 없는 것만이면 애매
+            if (not has_category) and (len(kws) <= 2 or any(p in text for p in ambiguous_phrases)):
+                return True
+
+        # phrase로도 애매 판정
+        if any(p in text for p in ambiguous_phrases) and not parsed_query.get("category"):
+            return True
+
+        return False
+
+
     def _is_near_me_phrase(self, q: str | None) -> bool:
         if not q:
             return False
         s = str(q).strip().lower()
         return ("근처" in s) or ("주변" in s) or ("집" in s) or ("내 근처" in s)
+
+    def _post_fix(self, user_prompt: str, parsed: dict) -> dict:
+        """GPT 파싱 후 보정"""
+        text = user_prompt.lower().strip()
+
+        # ✅ 시간 키워드만 있을 때 category 추론
+        time_only_keywords = ["주말", "토요일", "일요일", "평일", "주중"]
+        has_time_keyword = any(k in text for k in time_only_keywords)
+
+        meal_keywords = ["점심", "저녁", "아침", "식사", "먹"]
+        has_meal = any(k in text for k in meal_keywords)
+
+        # ✅ "실외 + 조용함" 조합 감지
+        quiet_keywords = ["조용", "잔잔", "여유", "평화", "차분"]
+        has_quiet = any(k in text for k in quiet_keywords)
+
+        if parsed.get("location_type") == "OUTDOOR" and has_quiet:
+            # 소셜 → 문화예술 변경
+            if parsed.get("category") == "소셜":
+                parsed["category"] = "문화예술"
+                parsed["subcategory"] = "사진촬영"
+                parsed["vibe"] = "조용한"
+                parsed["confidence"] = max(float(parsed.get("confidence", 0)), 0.65)
+                logger.info(f"[POST_FIX] 실외+조용 → category=문화예술")
+
+        # category가 없는데 시간 키워드만 있으면
+        if has_time_keyword and not parsed.get("category"):
+            # ✅ 유저 관심사 기반 추론
+            user_interests = parsed.get("user_interests", "").lower()
+
+            if "아웃도어" in user_interests or "스포츠" in user_interests:
+                parsed["category"] = "스포츠"
+                parsed["vibe"] = "활기찬"
+                parsed["confidence"] = max(float(parsed.get("confidence", 0)), 0.55)
+                logger.info(f"[POST_FIX] 주말+스포츠 관심사 → category=스포츠")
+
+            elif "소셜" in user_interests or "게임" in user_interests:
+                parsed["category"] = "소셜"
+                parsed["vibe"] = "즐거운"
+                parsed["confidence"] = max(float(parsed.get("confidence", 0)), 0.55)
+                logger.info(f"[POST_FIX] 주말+소셜 관심사 → category=소셜")
+
+            elif "카페" in user_interests or "문화" in user_interests:
+                parsed["category"] = "카페"
+                parsed["vibe"] = "여유로운"
+                parsed["confidence"] = max(float(parsed.get("confidence", 0)), 0.55)
+                logger.info(f"[POST_FIX] 주말+카페 관심사 → category=카페")
+
+            else:
+                # ✅ 기본값: 소셜 (주말은 보통 사람 만나는 활동)
+                parsed["category"] = "소셜"
+                parsed["vibe"] = "즐거운"
+                parsed["confidence"] = max(float(parsed.get("confidence", 0)), 0.5)
+                logger.info(f"[POST_FIX] 주말 기본값 → category=소셜")
+
+        # ✅ 식사 키워드가 있으면 무조건 맛집
+        if has_meal and not parsed.get("category"):
+            parsed["category"] = "맛집"
+            parsed["vibe"] = "캐주얼"
+            parsed["confidence"] = max(float(parsed.get("confidence", 0)), 0.6)
+            logger.info(f"[POST_FIX] 식사 키워드 → category=맛집")
+
+        # ✅ 1. 위치 전용 쿼리 감지 ("집 근처에서", "주변", "강남 근처")
+        location_only_keywords = ["근처", "주변"]
+        is_location_only = any(k in text for k in location_only_keywords)
+
+        # ✅ 구체적 활동이 없으면 위치 전용으로 판단
+        activity_keywords = [
+            "카페", "러닝", "운동", "맛집", "전시", "스터디", "놀", "먹",
+            "보드게임", "당구", "영화", "클라이밍", "배드민턴", "축구"
+        ]
+        has_activity = any(k in text for k in activity_keywords)
+
+        if is_location_only and not has_activity:
+            # GPT가 멋대로 붙인 category 제거
+            parsed.pop("category", None)
+            parsed.pop("subcategory", None)
+
+            # location_query 명시적 설정
+            if not parsed.get("location_query"):
+                # "집 근처에서" → "집 근처"
+                if "집" in text:
+                    parsed["location_query"] = "집 근처"
+                else:
+                    # "강남 근처" 같은 경우 추출
+                    words = text.split()
+                    for i, word in enumerate(words):
+                        if any(loc in word for loc in location_only_keywords):
+                            if i > 0:
+                                parsed["location_query"] = words[i - 1]
+                                break
+
+            # keywords도 정리 (location 관련만 남기기)
+            kws = parsed.get("keywords") or []
+            parsed["keywords"] = [k for k in kws if k in ["집", "강남", "홍대", "성수", "압구정"]]
+
+            logger.info(f"[POST_FIX] 위치 전용 쿼리 감지 → location_query={parsed.get('location_query')}, category 제거")
+
+        # ✅ 2. location_type 강화 (기존 코드 + 추가)
+        if "밖" in text or "실외" in text or "야외" in text or "아웃도어" in text:
+            parsed["location_type"] = "OUTDOOR"
+            logger.info(f"[POST_FIX] OUTDOOR 감지")
+
+        if "안" in text or "실내" in text or "인도어" in text:
+            parsed["location_type"] = "INDOOR"
+            logger.info(f"[POST_FIX] INDOOR 감지")
+
+        # ✅ 3. 기존 empty 보정 (유지)
+        empty = (not parsed.get("category")) and (not parsed.get("keywords"))
+        if empty:
+            play_intent = any(k in text for k in ["놀", "뭐하지", "할거없", "심심", "기분전환"])
+
+            if play_intent and parsed.get("location_type") == "INDOOR":
+                parsed["category"] = "소셜"
+                parsed["vibe"] = "즐거운"
+                parsed["confidence"] = max(float(parsed.get("confidence", 0) or 0), 0.5)
+                logger.info(f"[POST_FIX] 실내 놀이 의도 감지 → category=소셜")
+
+            elif play_intent and parsed.get("location_type") == "OUTDOOR":
+                parsed["category"] = "스포츠"
+                parsed["vibe"] = "활기찬"
+                parsed["confidence"] = max(float(parsed.get("confidence", 0) or 0), 0.5)
+                logger.info(f"[POST_FIX] 실외 활동 의도 감지 → category=스포츠")
+
+        morning_keywords = ["아침", "조식", "브런치", "morning"]
+        has_morning = any(k in text for k in morning_keywords)
+
+        if has_morning and parsed.get("category") == "맛집":
+            # 맛집 → 카페(브런치)로 변경
+            parsed["category"] = "카페"
+            parsed["subcategory"] = "브런치"
+            parsed["vibe"] = "여유로운"
+            parsed["confidence"] = max(float(parsed.get("confidence", 0)), 0.65)
+            logger.info(f"[POST_FIX] 아침 키워드 감지 → category=카페, subcategory=브런치")
+
+        # 공부 키워드 보정
+        study_keywords = ["공부", "스터디", "집중", "독서", "혼자"]
+        has_study = any(k in text for k in study_keywords)
+
+        if has_study and parsed.get("category") == "소셜":
+            # 소셜 → 스터디로 변경
+            parsed["category"] = "스터디"
+            parsed["vibe"] = "집중"
+            parsed["confidence"] = max(float(parsed.get("confidence", 0)), 0.65)
+            logger.info(f"[POST_FIX] 공부 키워드 감지 → category=스터디")
+
+        return parsed
+
+    """
+    _apply_intent_adjustment() 최종 약화 버전
+    Location 보정 +12 → +6
+    """
+
+    def _apply_intent_adjustment(self, intent: str, meeting: dict, parsed_query: dict = None) -> float:
+        """
+        match_score에 더해지는 보정값.
+        ✅ Location 보정 대폭 약화 (+12 → +6)
+        """
+        cat = (meeting.get("category") or "")
+        sub = (meeting.get("subcategory") or "")
+        meeting_location_type = meeting.get("meeting_location_type") or meeting.get("locationType")
+
+        adjustment = 0.0
+
+        # ✅ location_type 매칭 보정 대폭 약화
+        if parsed_query:
+            requested_type = parsed_query.get("location_type")
+            if requested_type and meeting_location_type:
+                if requested_type.upper() == meeting_location_type.upper():
+                    adjustment = +6.0  # ✅ +12 → +6으로 절반
+                else:
+                    adjustment = -10.0  # ✅ -15 → -10
+                logger.info(
+                    f"[LOCATION_TYPE] requested={requested_type}, meeting={meeting_location_type}, adj={adjustment:.1f}")
+                return adjustment
+
+        # ✅ Intent 기반 보정도 약화
+        # ✅ QUIET + 실외 조합 특수 처리
+        if intent == "QUIET":
+            if cat == "스포츠":
+                adjustment = -25.0  # ✅ -15 → -25 (러닝 강하게 패널티)
+            elif cat == "문화예술":
+                adjustment = +15.0  # ✅ +8 → +15 (갤러리/사진 강하게 보너스)
+            elif cat == "카페":
+                adjustment = +12.0  # ✅ +8 → +12
+            elif sub in ["산책", "사진촬영", "갤러리", "전시"]:
+                adjustment = +15.0  # ✅ 조용한 실외 활동 보너스
+
+        if intent == "ACTIVE":
+            if cat == "스포츠":
+                adjustment = +8.0  # ✅ +10 → +8
+            if cat in ["카페", "문화예술"]:
+                adjustment = -6.0  # ✅ -8 → -6
+
+        return adjustment
+
+    def _is_adjacent_timeslot(self, slot1: str, slot2: str) -> bool:
+        """인접 시간대 체크 (아침↔점심, 점심↔저녁 등)"""
+        if not slot1 or not slot2:
+            return False
+
+        adjacency = {
+            "MORNING": ["AFTERNOON"],
+            "AFTERNOON": ["MORNING", "EVENING"],
+            "EVENING": ["AFTERNOON", "NIGHT"],
+            "NIGHT": ["EVENING"]
+        }
+
+        return slot2 in adjacency.get(slot1, [])
+
+
+
+
+
 
 
 
