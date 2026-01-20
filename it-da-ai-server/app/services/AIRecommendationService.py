@@ -16,6 +16,7 @@ from app.core.scoring_utils import match_from_percentile
 from app.services.gpt_prompt_service import GPTPromptService
 from app.models.model_loader import model_loader
 from app.core.logging import logger
+from app.core.keyword_utils import clean_keywords
 
 
 class AIRecommendationService:
@@ -139,18 +140,15 @@ class AIRecommendationService:
     def _to_spring_search_request(self, enriched_query: dict, user_ctx: dict, user_prompt: str = "") -> dict:
         raw_keywords = enriched_query.get("keywords") or []
 
-        # ✅ category와 중복되는 키워드 제거
+        # ✅ 1) 한 번만 정제 (너가 만든 clean_keywords 사용)
+        keywords = clean_keywords(raw_keywords)
+
+        # ✅ 2) category와 중복 제거 (정제된 keywords에서 제거해야 함)
         category = enriched_query.get("category")
         if category:
-            keywords = [k for k in raw_keywords if k.lower() != category.lower()]
-        else:
-            keywords = raw_keywords
+            keywords = [k for k in keywords if str(k).strip().lower() != str(category).strip().lower()]
 
-        keywords = self._clean_keywords(keywords)
-
-        keyword = enriched_query.get("keyword")
-        if not keyword and keywords:
-            keyword = " ".join(keywords)
+        logger.info("[PAYLOAD_KEYWORDS] raw=%s -> cleaned=%s", raw_keywords, keywords)
 
         # ✅ 유저 좌표
         lat = user_ctx.get("lat") or user_ctx.get("latitude")
@@ -184,7 +182,7 @@ class AIRecommendationService:
             # ✅ locationType 추가 - Spring에서 필터링
             "locationType": location_type,
 
-            "keywords": keywords,
+            "keywords": keywords if keywords else None,   # ✅ 여기! 없으면 None
 
             # ✅ userLocation은 항상 보내도 됨 (거리 계산용)
             "userLocation": {
@@ -195,6 +193,7 @@ class AIRecommendationService:
             "locationQuery": location_query,
             "maxCost": enriched_query.get("maxCost") or enriched_query.get("max_cost"),
         }
+
 
         logger.info(f"[PAYLOAD_DEBUG] category={payload.get('category')} subcategory={payload.get('subcategory')}")
 
@@ -278,11 +277,7 @@ class AIRecommendationService:
             return qq
 
         def norm(q: dict):
-            # 키 이름 흔들림 방지
-            qq = dict(q)
-            if "time_slot" in qq and "timeSlot" not in qq:
-                qq["timeSlot"] = qq.pop("time_slot")
-            return qq
+            return dict(q)  # 아무것도 바꾸지 않기
 
         async def _try(label: str, q: dict, level: int):
             q = norm(q)
@@ -300,7 +295,7 @@ class AIRecommendationService:
             trace_steps.append({
                 "level": level,
                 "label": label,
-                "payload": self._to_spring_search_request(q, user_context),
+                "payload": self._to_spring_search_request(q, user_context, user_prompt),
                 "count": len(meetings),
                 "cats": dict(Counter((m.get("category"), m.get("subcategory")) for m in meetings)) if meetings else {},
             })
@@ -339,7 +334,7 @@ class AIRecommendationService:
                 ("L2 vibe 제거", ("vibe",)),
                 ("L3 timeSlot 제거", ("time_slot", "timeSlot")),
                 ("L4 subcategory 제거", ("subcategory",)),
-                ("L5 keywords 제거", ("keywords", "keyword")),
+                ("L5 keywords 제거", ("keywords",)),
                 ("L6 category 제거", ("category",)),
             ]
         elif conf >= 0.75:
@@ -428,8 +423,7 @@ class AIRecommendationService:
             if mapped:
                 qq["category"] = mapped
             else:
-                # subcategory는 있는데 매핑이 없으면 과필터 방지로 category 제거
-                qq.pop("category", None)
+                qq.pop("subcategory", None)  # category는 유지
 
         # 2) category 유효성 체크
         cat2 = (qq.get("category") or "").strip()
@@ -792,7 +786,7 @@ class AIRecommendationService:
             ms = int(match_scores[idx])
 
             # ✅ 1) 시간대 매칭 보너스 (핵심!)
-            requested_ts = parsed_query.get("time_slot")
+            requested_ts = parsed_query.get("time_slot") or parsed_query.get("timeSlot")
             meeting_ts = m.get("time_slot")
 
             if requested_ts and meeting_ts:
@@ -825,7 +819,16 @@ class AIRecommendationService:
                     logger.info(f"[LOC_BROAD] {meeting_loc} 광역: -3")
 
             # 최종 점수
-            ms = int(max(0, min(100, ms)))
+            # ✅ keyword 힌트 보너스 (검색 필터 X, 랭킹에만 소량 반영)
+            keywords = clean_keywords(parsed_query.get("keywords") or [])
+            if keywords:
+                text = (
+                    f"{m.get('title', '')} {m.get('location_name', '')} {m.get('location_address', '')} "
+                    f"{m.get('subcategory', '')} {m.get('vibe', '')}"
+                ).lower()
+
+                hit = sum(1 for k in keywords if k in text)
+                ms += min(hit * 2, 5)  # 최대 +5
 
             if ms >= 88:
                 lvl = "VERY_HIGH"
@@ -835,6 +838,9 @@ class AIRecommendationService:
                 lvl = "MEDIUM"
             else:
                 lvl = "LOW"
+
+            ms = min(ms, ceil)
+            ms = int(max(0, min(100, ms)))
 
             item = {
                 **m,
@@ -1016,6 +1022,7 @@ class AIRecommendationService:
 
         # ✅ fallback에서도 유저좌표 기반 거리 계산 주입
         meetings = self._inject_distance_km(meetings, user_context)
+        candidate_meetings = self._inject_distance_km(meetings, user_context)
 
         scored = []
         for meeting in meetings:
@@ -1072,7 +1079,6 @@ class AIRecommendationService:
             "meeting_location_type": self._normalize_location_type(m.get("location_type") or m.get("locationType")),
             "vibe": m.get("vibe", "") or "",
 
-            "max_participants": m.get("max_participants") or m.get("maxParticipants") or 10,
             "meeting_participant_count": m.get("current_participants") or m.get("currentParticipants") or 0,
             "expected_cost": m.get("expected_cost") or m.get("expectedCost") or 0,
 
@@ -1087,8 +1093,8 @@ class AIRecommendationService:
             "location_name": m.get("location_name") or m.get("locationName"),
             "location_address": m.get("location_address") or m.get("locationAddress"),
             "meeting_time": m.get("meeting_time") or m.get("meetingTime"),
-            "current_participants": m.get("current_participants") or m.get("currentParticipants"),
-            "max_participants": m.get("max_participants") or m.get("maxParticipants"),
+            "max_participants": m.get("max_participants") or m.get("maxParticipants") or 10,
+            "current_participants": m.get("current_participants") or m.get("currentParticipants") or 0,
         }
 
     def _make_clarification_card(self, user_prompt: str, parsed_query: dict, user_context: dict) -> dict:
@@ -1139,9 +1145,9 @@ class AIRecommendationService:
             qq.pop("vibe", None)
 
         # time_slot은 0.9 이상일 때만 (기존 유지)
-        if conf < 0.9:
-            qq.pop("time_slot", None)
-            qq.pop("timeSlot", None)
+        # if conf < 0.9:
+        #     qq.pop("time_slot", None)
+        #     qq.pop("timeSlot", None)
 
         return qq
 
@@ -1159,6 +1165,7 @@ class AIRecommendationService:
 
     def _inject_distance_km(self, meetings: List[Dict], user_ctx: Dict) -> List[Dict]:
         """meetings에 distance_km이 없으면 유저좌표로 계산해서 넣어줌."""
+
         u_lat = user_ctx.get("latitude") or user_ctx.get("lat")
         u_lng = user_ctx.get("longitude") or user_ctx.get("lng")
 
@@ -1189,43 +1196,49 @@ class AIRecommendationService:
 
         return out
 
-    def _clean_keywords(self, keywords: Optional[list[str]]) -> list[str]:
-        if not keywords:
-            return []
-
-        stop = {
-            # 요청/추임새
-            "추천", "추천해줘", "추천해주세요", "해줘", "해주세요",
-            "그냥", "좀", "한번", "같이", "요즘",
-
-            # 애매 프롬프트 전용 (핵심)
-            "갈만한곳", "갈만한", "갈곳", "가볼만한", "어디", "뭐하지", "뭐할까", "심심해",
-            "회사", "퇴근", "끝나고", "퇴근후", "퇴근하고", "끝나면",
-
-            # 범용 위치
-            "근처", "주변", "집", "집근처", "내근처",
-        }
-
-        cleaned = []
-        for k in keywords:
-            if not k:
-                continue
-            w = str(k).strip()
-            w = w.replace(" ", "")
-            if len(w) < 2:
-                continue
-            if w in stop:
-                continue
-            cleaned.append(w)
-
-        # 중복 제거(순서 유지)
-        seen = set()
-        out = []
-        for w in cleaned:
-            if w not in seen:
-                out.append(w)
-                seen.add(w)
-        return out
+    # def _clean_keywords(self, keywords: Optional[list[str]]) -> list[str]:
+    #     if not keywords:
+    #         return []
+    #
+    #     stop = {
+    #         # 요청/추임새
+    #         "추천", "추천해줘", "추천해주세요", "해줘", "해주세요",
+    #         "그냥", "좀", "한번", "같이", "요즘",
+    #
+    #         # 애매 프롬프트 전용
+    #         "갈만한곳", "갈만한", "갈곳", "가볼만한", "어디", "뭐하지", "뭐할까", "심심해",
+    #         "회사", "퇴근", "끝나고", "퇴근후", "퇴근하고", "끝나면",
+    #
+    #         # ✅ 새로 추가: "나가다" 관련 불필요 키워드
+    #         "나가고싶다", "나가다", "외출", "싶다", "하고싶다",
+    #
+    #         # 범용 위치
+    #         "근처", "주변", "집", "집근처", "내근처",
+    #
+    #         # ✅ 카테고리명 (중복 방지)
+    #         "소셜", "스포츠", "카페", "맛집", "문화예술", "스터디", "취미활동",
+    #     }
+    #
+    #     cleaned = []
+    #     for k in keywords:
+    #         if not k:
+    #             continue
+    #         w = str(k).strip()
+    #         w = w.replace(" ", "")
+    #         if len(w) < 2:
+    #             continue
+    #         if w in stop:
+    #             continue
+    #         cleaned.append(w)
+    #
+    #     # 중복 제거(순서 유지)
+    #     seen = set()
+    #     out = []
+    #     for w in cleaned:
+    #         if w not in seen:
+    #             out.append(w)
+    #             seen.add(w)
+    #     return out
 
     def _is_ambiguous_prompt(self, user_prompt: str, parsed_query: dict) -> bool:
         text = (user_prompt or "").lower()
@@ -1268,6 +1281,34 @@ class AIRecommendationService:
 
         meal_keywords = ["점심", "저녁", "아침", "식사", "먹"]
         has_meal = any(k in text for k in meal_keywords)
+
+        # ✅ 새로 추가: "나가다" 표현 감지
+        go_out_keywords = ["나가", "외출", "나갈"]
+        has_go_out = any(k in text for k in go_out_keywords)
+
+        if has_go_out and not parsed.get("location_type"):
+            parsed["location_type"] = "OUTDOOR"
+
+            # category 보정 (소셜 → 스포츠 or 문화예술)
+            if parsed.get("category") == "소셜":
+                # vibe로 구분
+                vibe = parsed.get("vibe", "")
+                if vibe in ["조용한", "여유로운", "힐링"]:
+                    parsed["category"] = "문화예술"
+                    parsed["subcategory"] = "산책"
+                else:
+                    parsed["category"] = "스포츠"
+                    parsed["subcategory"] = "러닝"
+
+            # keywords 정리
+            kws = parsed.get("keywords") or []
+            # "나가고싶다", "소셜" 같은 불필요한 키워드 제거
+            bad = {"나가고싶다", "외출", parsed.get("category")}
+            bad |= set(go_out_keywords)  # 리스트 합치기
+            parsed["keywords"] = [k for k in kws if k not in bad]
+
+            parsed["confidence"] = max(float(parsed.get("confidence", 0)), 0.6)
+            logger.info(f"[POST_FIX] '나가다' 표현 감지 → location_type=OUTDOOR, category={parsed.get('category')}")
 
         # ✅ "실외 + 조용함" 조합 감지
         quiet_keywords = ["조용", "잔잔", "여유", "평화", "차분"]
@@ -1384,6 +1425,11 @@ class AIRecommendationService:
         morning_keywords = ["아침", "조식", "브런치", "morning"]
         has_morning = any(k in text for k in morning_keywords)
 
+        # category를 새로 만들어낼 때는 confidence 가드
+        if parsed.get("category") and float(parsed.get("confidence", 0)) < 0.6:
+            parsed.pop("category", None)
+            parsed.pop("subcategory", None)
+
         if has_morning and parsed.get("category") == "맛집":
             # 맛집 → 카페(브런치)로 변경
             parsed["category"] = "카페"
@@ -1417,7 +1463,8 @@ class AIRecommendationService:
         """
         cat = (meeting.get("category") or "")
         sub = (meeting.get("subcategory") or "")
-        meeting_location_type = meeting.get("meeting_location_type") or meeting.get("locationType")
+        meeting_location_type = meeting.get("meeting_location_type") or meeting.get("location_type") or meeting.get(
+            "locationType")
 
         adjustment = 0.0
 
@@ -1466,7 +1513,6 @@ class AIRecommendationService:
         }
 
         return slot2 in adjacency.get(slot1, [])
-
 
 
 

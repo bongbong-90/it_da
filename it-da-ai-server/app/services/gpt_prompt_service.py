@@ -279,6 +279,35 @@ class GPTPromptService:
   "location_type": "OUTDOOR"
 }
 
+================================
+🎯 "나가다" 표현 처리
+================================
+**"나가고 싶다", "밖에 나가다", "외출" → location_type: "OUTDOOR"**
+
+입력: "그냥 나가고 싶다"
+```json{
+"category": "스포츠",
+"location_type": "OUTDOOR",
+"vibe": "활기찬",
+"keywords": ["산책", "야외"],
+"confidence": 0.6
+}
+
+입력: "밖에 나가서 뭐 할까"
+```json{
+"category": "문화예술",
+"location_type": "OUTDOOR",
+"vibe": "여유로운",
+"keywords": ["야외", "산책"],
+"confidence": 0.6
+}
+
+**❌ 잘못된 예:**
+```json{
+"category": "소셜",  // ← "나가다"만 보고 실내 활동 추천하면 안 됨
+"keywords": ["나가고 싶다", "소셜"]  // ← category 중복 키워드 제거
+}
+
     """
 
 
