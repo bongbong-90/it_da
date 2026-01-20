@@ -450,7 +450,7 @@ const MyPage: React.FC = () => {
                           <button
                               className="mypage-back-btn"
                               type="button"
-                              onClick={() => window.history.back()}
+                              onClick={() => navigate('/')}  // ✅ 메인페이지로!
                           >
                               ←
                           </button>
