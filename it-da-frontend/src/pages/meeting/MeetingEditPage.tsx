@@ -142,6 +142,17 @@ const MeetingEditPage = () => {
       const dateStr = meetingDateTime.toISOString().split("T")[0];
       const timeStr = `${String(meetingDateTime.getHours()).padStart(2, "0")}:${String(meetingDateTime.getMinutes()).padStart(2, "0")}`;
 
+        // ✅ 주소와 상세주소 분리
+        let mainAddress = meeting.locationAddress || "";
+        let detail = "";
+
+        // "주소 (상세주소)" 형식에서 분리
+        const addressMatch = mainAddress.match(/^(.+?)\s*\((.+)\)$/);
+        if (addressMatch) {
+            mainAddress = addressMatch[1].trim();  // 괄호 앞부분
+            detail = addressMatch[2].trim();        // 괄호 안의 내용
+        }
+
       // 폼 데이터 설정
       setFormData({
         title: meeting.title,
@@ -150,7 +161,7 @@ const MeetingEditPage = () => {
         description: meeting.description,
         meetingDate: dateStr,
         meetingTime: timeStr,
-        detailAddress: "",
+        detailAddress: detail,
         maxParticipants: meeting.maxParticipants,
         deadline: "",
         cost: meeting.expectedCost || 0,
@@ -164,7 +175,7 @@ const MeetingEditPage = () => {
         name: meeting.locationName,
         latitude: meeting.latitude,
         longitude: meeting.longitude,
-        address: meeting.locationAddress,
+        address: mainAddress,
       });
 
       // 이미지 미리보기
@@ -430,16 +441,57 @@ const MeetingEditPage = () => {
   return (
     <div className="meeting-create-page">
       {/* 헤더 */}
-      <header className="header">
-        <div className="header-content">
-          <div className="header-left">
-            <button className="back-btn" onClick={() => navigate(-1)}>
-              ←
-            </button>
-            <h1 className="header-title">모임 수정하기</h1>
-          </div>
-        </div>
-      </header>
+        <header className="header">
+            <div className="header-wrapper">
+                <div className="header-content">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                        <button
+                            onClick={() => navigate(-1)}
+                            style={{
+                                background: 'none',
+                                border: 'none',
+                                fontSize: '1.4rem',
+                                cursor: 'pointer',
+                                padding: '0.5rem',
+                                minWidth: '40px'
+                            }}
+                        >
+                            ←
+                        </button>
+                        <h1 style={{
+                            fontSize: '1.15rem',
+                            fontWeight: '700',
+                            margin: 0,
+                            whiteSpace: 'nowrap'
+                        }}>
+                            모임 수정하기
+                        </h1>
+                    </div>
+
+                    <div style={{
+                        position: 'absolute',
+                        left: '50%',
+                        transform: 'translateX(-50%)'
+                    }}>
+                        <h1
+                            onClick={() => navigate("/")}
+                            style={{
+                                fontSize: '1.3rem',
+                                fontWeight: '800',
+                                margin: 0,
+                                cursor: 'pointer',
+                                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                WebkitBackgroundClip: 'text',
+                                WebkitTextFillColor: 'transparent',
+                                backgroundClip: 'text'
+                            }}
+                        >
+                            IT-DA
+                        </h1>
+                    </div>
+                </div>
+            </div>
+        </header>
 
       {/* 메인 컨테이너 */}
       <div className="container" style={{ maxWidth: "1400px", width: "50%" }}>
@@ -536,28 +588,99 @@ const MeetingEditPage = () => {
         <section className="form-section">
           <h2 className="section-title">📍 일시 및 장소</h2>
 
-          <div className="form-group">
-            <label className="form-label">
-              모임 날짜 및 시간 <span className="required">*</span>
-            </label>
-            <div className="datetime-grid">
-              <input
-                type="date"
-                name="meetingDate"
-                className="form-input"
-                value={formData.meetingDate}
-                min={minDate}
-                onChange={handleChange}
-              />
-              <input
-                type="time"
-                name="meetingTime"
-                className="form-input"
-                value={formData.meetingTime}
-                onChange={handleChange}
-              />
+            <div className="form-group">
+                <label className="form-label">
+                    모임 날짜 및 시간 <span className="required">*</span>
+                </label>
+                <div className="datetime-grid">
+                    <input
+                        type="date"
+                        name="meetingDate"
+                        className="form-input"
+                        value={formData.meetingDate}
+                        min={minDate}
+                        onChange={handleChange}
+                    />
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem' }}>
+                        {/* 오전/오후 */}
+                        <select
+                            className="form-select"
+                            value={formData.meetingTime ? (parseInt(formData.meetingTime.split(':')[0]) < 12 ? 'AM' : 'PM') : ''}
+                            onChange={(e) => {
+                                const currentTime = formData.meetingTime || '00:00';
+                                const [oldHour, minute] = currentTime.split(':');
+                                let hour = parseInt(oldHour);
+
+                                if (e.target.value === 'PM' && hour < 12) {
+                                    hour += 12;
+                                } else if (e.target.value === 'AM' && hour >= 12) {
+                                    hour -= 12;
+                                }
+
+                                setFormData(prev => ({
+                                    ...prev,
+                                    meetingTime: `${String(hour).padStart(2, '0')}:${minute}`
+                                }));
+                            }}
+                        >
+                            <option value="" disabled hidden>오전/오후</option>
+                            <option value="AM">오전</option>
+                            <option value="PM">오후</option>
+                        </select>
+
+                        {/* 시 */}
+                        <select
+                            className="form-select"
+                            value={formData.meetingTime ? String(parseInt(formData.meetingTime.split(':')[0]) % 12 || 12) : ''}
+                            onChange={(e) => {
+                                const currentTime = formData.meetingTime || '00:00';
+                                const [oldHour, minute] = currentTime.split(':');
+                                const isPM = parseInt(oldHour) >= 12;
+                                let hour = parseInt(e.target.value);
+
+                                if (isPM && hour !== 12) hour += 12;
+                                if (!isPM && hour === 12) hour = 0;
+
+                                setFormData(prev => ({
+                                    ...prev,
+                                    meetingTime: `${String(hour).padStart(2, '0')}:${minute}`
+                                }));
+                            }}
+                        >
+                            <option value="" disabled hidden>시</option>
+                            {[...Array(12)].map((_, i) => (
+                                <option key={i + 1} value={i + 1}>
+                                    {i + 1}시
+                                </option>
+                            ))}
+                        </select>
+
+                        {/* 분 (10분 단위) */}
+                        <select
+                            className="form-select"
+                            value={formData.meetingTime ? formData.meetingTime.split(':')[1] : ''}
+                            onChange={(e) => {
+                                const currentTime = formData.meetingTime || '00:00';
+                                const hour = currentTime.split(':')[0];
+
+                                setFormData(prev => ({
+                                    ...prev,
+                                    meetingTime: `${hour}:${e.target.value}`
+                                }));
+                            }}
+                        >
+                            <option value="" disabled hidden>분</option>
+                            <option value="00">00분</option>
+                            <option value="10">10분</option>
+                            <option value="20">20분</option>
+                            <option value="30">30분</option>
+                            <option value="40">40분</option>
+                            <option value="50">50분</option>
+                        </select>
+                    </div>
+                </div>
             </div>
-          </div>
 
           <div className="form-group">
             <label className="form-label">

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "@/stores/useAuthStore";
-import axios from "axios";
+import axios from "../../api/auth.api.ts";
 import "./MeetingCreatePage.css";
 
 declare global {
@@ -428,7 +428,7 @@ const MeetingCreatePage = () => {
                         transform: 'translateX(-50%)'
                     }}>
                         <h1
-                            onClick={() => navigate("/meetings")}
+                            onClick={() => navigate("/")}
                             style={{
                                 fontSize: '1.3rem',
                                 fontWeight: '800',

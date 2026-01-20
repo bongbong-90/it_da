@@ -18,6 +18,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -45,17 +46,22 @@ public class MeetingController {
     )
     @PostMapping
     public ResponseEntity<MeetingResponse> createMeeting(
-            @AuthenticationPrincipal Long userId,  // ✅ User 대신 Long (userId)
-            @Valid @RequestBody MeetingCreateRequest request
+            Authentication authentication,
+            @RequestBody MeetingCreateRequest request
     ) {
-        log.info("📍 POST /api/meetings - userId: {}", userId);
+        if (authentication == null) {
+            throw new IllegalStateException("인증 정보가 없습니다.");
+        }
 
-        // ✅ User 조회
+        Object principal = authentication.getPrincipal();
+        log.info("principal type = {}", principal.getClass());
+
+        Long userId = (Long) principal;
+
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
 
         MeetingResponse response = meetingService.createMeeting(user, request);
-
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 

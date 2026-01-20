@@ -464,7 +464,7 @@ const MyPage: React.FC = () => {
                           transform: 'translateX(-50%)'
                       }}>
                           <h1
-                              onClick={() => navigate("/meetings")}
+                              onClick={() => navigate("/")}
                               style={{
                                   fontSize: '1.3rem',
                                   fontWeight: '800',

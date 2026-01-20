@@ -87,6 +87,34 @@ const MeetingManageModal = ({
     }
   };
 
+    const handleDeleteMeeting = async () => {
+        if (!window.confirm("정말 이 모임을 삭제하시겠습니까?\n삭제된 모임은 복구할 수 없습니다.")) {
+            return;
+        }
+
+        try {
+            await axios.delete(
+                `http://localhost:8080/api/meetings/${meetingId}`,
+                { withCredentials: true }
+            );
+
+            alert("✅ 모임이 삭제되었습니다.");
+            onClose(); // 모달 닫기
+            navigate("/meetings"); // 모임 목록으로 이동
+        } catch (error: any) {
+            console.error("❌ 모임 삭제 실패:", error);
+
+            if (error.response?.status === 403) {
+                alert("모임 주최자만 삭제할 수 있습니다.");
+            } else if (error.response?.data?.message) {
+                alert(error.response.data.message);
+            } else {
+                alert("모임 삭제에 실패했습니다.");
+            }
+        }
+    };
+
+
   const formatDate = (dateString: string) => {
     if (!dateString) return "날짜 정보 없음";
     try {
@@ -230,17 +258,12 @@ const MeetingManageModal = ({
           >
             ✏️ 모임 수정
           </button>
-          <button
-            className="btn-delete"
-            onClick={() => {
-              if (confirm("정말 모임을 삭제하시겠습니까?")) {
-                // TODO: 삭제 API 호출
-                alert("모임 삭제 기능은 아직 구현 중입니다.");
-              }
-            }}
-          >
-            🗑️ 모임 삭제
-          </button>
+            <button
+                className="btn-delete"
+                onClick={handleDeleteMeeting}
+            >
+                🗑️ 모임 삭제
+            </button>
         </div>
       </div>
     </div>
