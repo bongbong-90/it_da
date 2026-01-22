@@ -1482,6 +1482,17 @@ class AIRecommendationService:
         """GPT 파싱 후 보정"""
         text = user_prompt.lower().strip()
 
+        # ✅ [NEW] 사진/촬영 의도 강제
+        photo_words = ["사진", "촬영", "포토", "카메라", "필카", "스냅", "인생샷"]
+        if any(w in text for w in photo_words):
+            parsed["category"] = "문화예술"
+            parsed["subcategory"] = "사진촬영"  # ← 이게 DB에 있으면 설정
+            parsed["vibe"] = parsed.get("vibe") or "즐거운"
+            parsed["confidence"] = max(float(parsed.get("confidence", 0) or 0), 0.75)
+
+            logger.info("[POST_FIX] 사진/촬영 감지 → category=문화예술, subcategory=사진촬영")
+            return parsed
+
         brain_words = ["머리", "머리쓰", "두뇌", "추리", "전략", "퍼즐", "퀴즈", "방탈출", "보드게임"]
 
         if any(w in text for w in brain_words):
