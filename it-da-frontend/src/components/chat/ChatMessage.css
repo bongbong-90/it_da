@@ -100,3 +100,84 @@
     color: black;
     border-radius: 15px 15px 15px 0; /* 왼쪽 하단 모서리만 뾰족하게 */
 }
+.chat-bubble .vote-card-v2 {
+    background: transparent;
+    border: none;
+    padding: 0;
+    box-shadow: none;
+}
+
+.message-bubble-wrapper .vote-card-v2.full-width {
+    max-width: 100%;
+}
+.unread-num {
+    color: #FFD700;
+    font-size: 11px;
+    font-weight: bold;
+}
+
+.chat-bubble .vote-card-v2 {
+    background: transparent;
+    border: none;
+    padding: 0;
+    box-shadow: none;
+}
+
+.message-bubble-wrapper .vote-card-v2.full-width {
+    max-width: 100%;
+}
+
+.others-bubble .vote-card-v2.full-width {
+    background: #ffffff;
+    border: 1px solid #e9ecef;
+    padding: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.mine-bubble .vote-card-v2.full-width {
+    background: #ffffff;
+    border: 1px solid #e9ecef;
+    padding: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+.submit-btn { flex: 1; justify-content: center; align-items: center; }
+.modal-btns { display: flex; gap: 10px; }
+.bill-member-row.is-paid {
+    background-color: #f0f4ff !important; /* 연한 파란색 배경 */
+    border: 1.5px solid #6c5ce7 !important; /* 보라색 테두리 강조 */
+    box-shadow: 0 2px 8px rgba(108, 92, 231, 0.1);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transform: translateY(-2px); /* 살짝 올라가는 효과 */
+}
+
+/* 2. 아이콘 애니메이션 */
+.bill-member-row span:last-child {
+    font-size: 1.1rem;
+    transition: transform 0.2s ease;
+}
+
+.bill-member-row.is-paid span:last-child {
+    transform: scale(1.2);
+    color: #6c5ce7;
+}
+
+/* 3. 전체 정산 완료 시 카드 스타일 */
+.bill-calc-card.completed {
+    border: 2px solid #2ecc71;
+    background-color: #fafff9 !important;
+}
+.bill-member-row {
+    transition: all 0.2s ease-in-out;
+}
+
+/* ✅ 모임장이 클릭했을 때 반짝이는 효과 */
+.bill-member-row:active {
+    transform: scale(0.95);
+    background-color: #e0e7ff !important;
+}
+
+/* ✅ 이미 입금 완료된 블럭은 살짝 투명하게 처리하여 구별 */
+.bill-member-row.is-paid {
+    opacity: 0.9;
+    border-style: double; /* 테두리를 두 줄로 만들어 강조 */
+}

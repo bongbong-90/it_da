@@ -1,26 +1,29 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect,useRef } from "react";
 import { useParams } from "react-router-dom";
-import { useChatStore } from "../../stores/useChatStore";
-import { chatApi } from "../../api/chat.api"; // ChatMessage 타입 활용
-import ChatInput from "../../components/chat/ChatInput";
-import ChatMessage from "../../components/chat/ChatMessage";
+import { useChatStore,ChatMessage } from "@/stores/useChatStore.ts";
+import { chatApi } from "@/api/chat.api.ts"; // ChatMessage 타입 활용
+import ChatMessageItem from "../../components/chat/ChatMessage";
 import ChatMemberList from "../../components/chat/ChatMemberList";
 import { useAuthStore } from "@/stores/useAuthStore";
 import toast from "react-hot-toast";
 import ChatReportModal from "./ChatReportModal";
-import { User } from "../../types/user.types";
+import { User } from "@/types/user.types.ts";
 import "./ChatRoomPage.css";
 import BillInputModal from "../../components/chat/BillInputModal";
 import PollInputModal from "../../components/chat/PollInputModal";
+import api from '@/api/axios.config';
 
 interface BillData {
     totalAmount: number;
+    participantCount: number; // 참여 인원 추가
     account: string;
 }
 
 interface PollData {
     title: string;
     options: string[];
+    isAnonymous?: boolean;
+    isMultipleChoice?: boolean;
 }
 
 interface RawMemberResponse {
@@ -35,6 +38,14 @@ interface RawMemberResponse {
     role?: string;
 }
 
+// const api = axios.create({
+//     baseURL: 'http://localhost:8080',
+//     withCredentials: true,
+//     headers: {
+//         'Content-Type': 'application/json'
+//     }
+// });
+
 const ChatRoomPage: React.FC = () => {
     const { roomId } = useParams<{ roomId: string }>();
     const { messages, addMessage, setMessages, markAllAsRead,decrementUnreadCount } = useChatStore();
@@ -44,8 +55,17 @@ const ChatRoomPage: React.FC = () => {
     const [members, setMembers] = useState<User[]>([]);
     const [reportTarget, setReportTarget] = useState<{ id: number; name: string } | null>(null);
     const [activeModal, setActiveModal] = useState<"BILL" | "POLL" | null>(null);
-
     const [roomTitle,setRoomTitle]=useState<string>("채팅방");
+
+    const [page, setPage] = useState(0);
+    const [hasMore, setHasMore] = useState(true);
+    const [isLoading, setIsLoading] = useState(false);
+    const chatContainerRef = useRef<HTMLDivElement>(null);
+    const messageEndRef = useRef<HTMLDivElement>(null);
+
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [roomMembers, setRoomMembers] = useState<{ userId: number; nickname: string }[]>([]);
+    const [inputValue, setInputValue] = useState<string>("");
 
     // AI 추천 알림창 (HTML 기능 반영)
     const showAIRecommendation = () => {
@@ -55,22 +75,116 @@ const ChatRoomPage: React.FC = () => {
         });
     };
 
-    const handleFeatureSubmit = (type: "BILL" | "POLL", data: BillData | PollData) => {
-        if (!roomId || !currentUser?.email) return;
+    const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !roomId) return;
 
-        const content = type === "BILL" ? "💰 정산 요청이 도착했습니다." : `📊 투표: ${(data as PollData).title}`;
+        try {
+            setIsLoading(true);
+            // API 호출하여 서버 저장 및 채팅 메시지 발송 (백엔드에서 자동 처리)
+            await chatApi.uploadImage(Number(roomId), file);
+            toast.success("이미지를 전송했습니다.");
+        } catch (error) {
+            console.error("이미지 전송 실패:", error);
+            toast.error("이미지 전송에 실패했습니다.");
+        } finally {
+            setIsLoading(false);
+            if (fileInputRef.current) fileInputRef.current.value = ""; // 입력창 초기화
+        }
+    };
 
-        chatApi.sendMessage(
-            Number(roomId),
-            currentUser.email,
-            currentUser.userId,
-            content,
-            type,
-            data as unknown as Record<string, unknown>
-        );
+    // ✅ 스크롤 핸들러 구현 (위로 올리면 과거 기록 로드)
+    const handleScroll = async () => {
+        if (!chatContainerRef.current || !hasMore || isLoading) return;
 
-        setActiveModal(null);
-        toast.success("메시지를 전송했습니다.");
+        if (chatContainerRef.current.scrollTop === 0) {
+            setIsLoading(true);
+            const previousHeight = chatContainerRef.current.scrollHeight;
+
+            try {
+                const oldMessages = await chatApi.getChatMessages(Number(roomId), page + 1,50);
+
+                if (oldMessages && oldMessages.length > 0) {
+                    const validatedOldMessages = oldMessages.map(msg => ({
+                        ...msg,
+                        senderNickname: msg.senderNickname || "사용자",
+                        unreadCount: 0,
+                        sentAt: msg.sentAt || new Date().toISOString()
+                    }));
+
+                    const combined = [...validatedOldMessages, ...messages];
+
+                    // 중복 제거 강화
+                    const uniqueMap = new Map();
+                    combined.forEach(msg => {
+                        if (!uniqueMap.has(msg.messageId)) {
+                            uniqueMap.set(msg.messageId, msg);
+                        }
+                    });
+
+                    const uniqueSorted = Array.from(uniqueMap.values())
+                        .sort((a, b) => new Date(a.sentAt).getTime() - new Date(b.sentAt).getTime());
+
+                    setMessages(uniqueSorted);
+                    setPage(prev => prev + 1);
+
+                    setTimeout(() => {
+                        if (chatContainerRef.current) {
+                            chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight - previousHeight;
+                        }
+                    }, 50);
+                } else {
+                    setHasMore(false);
+                }
+            } catch (e) {
+                console.error("과거 기록 로드 실패:", e);
+            } finally {
+                setIsLoading(false);
+            }
+        }
+    };
+
+    const handleFeatureSubmit =async (type: "BILL" | "POLL", data: any) => {
+        if (!roomId || !currentUser?.email || !currentUser?.userId) {
+            toast.error("로그인 세션이 만료되었습니다.");
+            return;
+        }
+
+        try {
+            if (type === "BILL") {
+                const perPerson = Math.floor(data.totalAmount / data.participantCount);
+                const content = `💰 정산 요청: 1인당 ${perPerson.toLocaleString()}원`;
+                const metadata = { ...data, amountPerPerson: perPerson };
+
+                chatApi.sendMessage(
+                    Number(roomId),
+                    currentUser.email,
+                    currentUser.userId,
+                    content,
+                    type,
+                    metadata
+                );
+            } else if (type === "POLL") {
+                // ✅ 투표는 별도 API로 생성 (백엔드의 VoteController 사용)
+                await api.post(
+                    `/votes/${roomId}`,
+                    {
+                        title: data.title,
+                        isAnonymous: data.isAnonymous || false,
+                        isMultipleChoice: data.isMultipleChoice || false,
+                        options: data.options // 문자열 배열로 전송
+                    },
+                    { withCredentials: true }
+                );
+                console.log("✅ 투표 생성 API 호출 완료");
+            }
+
+            setActiveModal(null);
+            toast.success("메시지를 전송했습니다.");
+        } catch (error) {
+            console.error("❌ 전송 실패:", error);
+            toast.error("전송에 실패했습니다.");
+        }
     };
 
     useEffect(() => {
@@ -78,55 +192,47 @@ const ChatRoomPage: React.FC = () => {
             if (!roomId || !currentUser) return;
 
             try {
-                const history = await chatApi.getChatMessages(Number(roomId));
-
+                // 초기 메시지 로드
+                const history = await chatApi.getChatMessages(Number(roomId), 0, 50);
                 const validatedHistory = history.map(msg => ({
                     ...msg,
-                    // senderNickname이 없거나 "익"이면 username으로 대체
-                    senderNickname: msg.senderNickname && msg.senderNickname !== "익"
-                        ? msg.senderNickname
-                        : "사용자",
-                    unreadCount: 0 // 과거 내역은 일단 0으로 표시 (서버에서 계산된 값이 오면 그것 사용)
+                    senderNickname: msg.senderNickname || "사용자",
+                    unreadCount: 0
                 }));
-
                 setMessages(validatedHistory);
 
-                // 서버에 읽음 신호 전송
                 await chatApi.markAsRead(Number(roomId), currentUser.email);
                 chatApi.sendReadEvent(Number(roomId), currentUser.email);
-                // Zustand 스토어 상태 강제 동기화 (구독 중인 다른 메시지들도 0으로 처리)
                 markAllAsRead();
 
-                // 2. 방 제목 동적 세팅 추가
-                const rooms = await chatApi.getRooms(); //
-                const currentRoom = rooms.find((r: any) => r.chatRoomId === Number(roomId)); //
-                if (currentRoom) {
-                    setRoomTitle(currentRoom.roomName); //
-                }
+                const rooms = await chatApi.getRooms();
+                const currentRoom = rooms.find((r: any) => r.chatRoomId === Number(roomId));
+                if (currentRoom) setRoomTitle(currentRoom.roomName);
 
                 const rawMembers: RawMemberResponse[] = await chatApi.getRoomMembers(Number(roomId));
-                const formattedMembers: User[] = rawMembers.map((m: RawMemberResponse) => {
-                    // ✅ 닉네임이 있으면 닉네임만, 없으면 유저네임만 사용하여 이름 중복 방지
-                    const displayName = m.nickname && m.nickname.trim() !== "" ? m.nickname : m.username;
-
-                    return {
-                        id: m.userId,
-                        userId: m.userId,
-                        name: displayName, // UI에서는 이 name 필드 하나만 사용하도록 유도
-                        username: m.username,
-                        nickname:m.nickname,
-                        email: m.email,
-                        status: (m.status as User['status']) || ("ACTIVE" as User['status']),
-                        createdAt: m.createdAt || new Date().toISOString(),
-                        updatedAt: m.updatedAt || new Date().toISOString(),
-                        profileImageUrl: m.profileImageUrl || "",
-                        role: m.userId === currentUser.userId ? "ME" : m.role === "ORGANIZER" ? "LEADER" : "MEMBER"
-                    };
-                });
+                const formattedMembers: User[] = rawMembers.map((m: RawMemberResponse) => ({
+                    id: m.userId,
+                    userId: m.userId,
+                    name: m.nickname && m.nickname.trim() !== "" ? m.nickname : m.username,
+                    username: m.username,
+                    nickname: m.nickname,
+                    email: m.email,
+                    status: (m.status || "ACTIVE")  as User['status'],
+                    createdAt: m.createdAt || new Date().toISOString(),
+                    updatedAt: m.updatedAt || new Date().toISOString(),
+                    profileImageUrl: m.profileImageUrl || "",
+                    role: m.userId === currentUser.userId ? "ME" : m.role === "ORGANIZER" ? "LEADER" : "MEMBER"
+                }));
                 setMembers(formattedMembers);
+
+                const simpleMembers = rawMembers.map(m => ({
+                    userId: m.userId,
+                    nickname: m.nickname && m.nickname.trim() !== "" ? m.nickname : m.username
+                }));
+                setRoomMembers(simpleMembers);
+
             } catch (e) {
                 console.error("데이터 로드 실패:", e);
-                toast.error("채팅방 정보를 불러오는데 실패했습니다.");
             }
         };
 
@@ -135,58 +241,79 @@ const ChatRoomPage: React.FC = () => {
         let isSubscribed = true;
 
         if (roomId && currentUser?.email) {
-            // 기존 연결이 있다면 명시적으로 해제하여 중복 구독을 막습니다.
-            chatApi.disconnect();
+            chatApi.disconnect(); // 중복 구독 방지
 
             chatApi.connect(Number(roomId), currentUser.email, (newMsg: any) => {
-                if (isSubscribed) {
-                    const isMine = String(newMsg.senderId) === String(currentUser.userId);
+                if (!isSubscribed) return;
 
-                    const validatedMsg = {
+                if (newMsg.type === 'BILL_UPDATE' || newMsg.type === 'VOTE_UPDATE') {
+                    addMessage({
                         ...newMsg,
-                        // 💡 서버가 준 숫자(예: 2)를 그대로 저장 (내가 보낸 거라면 2가 뜹니다)
-                        unreadCount: Number(newMsg.unreadCount),
-                        sentAt: newMsg.sentAt || new Date().toISOString(),
-                        senderNickname: newMsg.senderNickname,
-                        senderId: Number(newMsg.senderId),
-                        messageId: Number(newMsg.messageId) || Date.now()
-                    };
+                        messageId: Number(newMsg.targetMessageId || newMsg.messageId),
+                        // ✅ 핵심: 업데이트 신호를 받아도 스토어가 찾을 수 있게 원본 타입(BILL/POLL)을 명시해야 함
+                        type: newMsg.type === 'BILL_UPDATE' ? 'BILL' : 'POLL'
+                    });
+                    return; // 업데이트용 신호이므로 아래의 중복 체크 로직을 타지 않게 종료
+                }
 
-                    addMessage(validatedMsg);
+                const isMine = Number(newMsg.senderId) === Number(currentUser.userId) ||
+                    newMsg.senderEmail === currentUser.email;
 
-                    // ✅ 핵심 1: 내가 방을 보고 있는데 남의 메시지가 왔다면, 즉시 읽음 신호 발송
-                    // 이 신호가 가야 상대방 화면의 '2'가 '1'로 줄어듭니다.
-                    if (!isMine) {
-                        chatApi.sendReadEvent(Number(roomId), currentUser.email);
-                    }
+                const validatedMsg: ChatMessage = {
+                    ...newMsg,
+                    senderNickname: newMsg.senderNickname || "사용자",
+                    unreadCount: isMine
+                        ? Number(newMsg.unreadCount ?? 0)
+                        : Math.max(0, Number(newMsg.unreadCount ?? 0) - 1),
+                    sentAt: newMsg.sentAt || new Date().toISOString(),
+                    senderId: Number(newMsg.senderId),
+                    messageId: Number(newMsg.messageId) || Date.now(),
+                    metadata: typeof newMsg.metadata === 'string'
+                        ? JSON.parse(newMsg.metadata)
+                        : newMsg.metadata
+                };
+
+                addMessage(validatedMsg);
+
+
+                if (!isMine && newMsg.type === 'TALK') {
+                    chatApi.sendReadEvent(Number(roomId), currentUser.email);
                 }
             }, (readData: any) => {
-                // ✅ 핵심 2: 누군가 읽었다는 신호(READ 이벤트)가 오면 내 화면의 모든 숫자 1씩 차감
+                console.log("📖 읽음 이벤트 수신:", readData);
+                // ✅ 핵심 수정 3: 상대방이 읽었을 때만 내 화면의 숫자를 줄임
+                // 내가 읽은 이벤트는 이미 markAllAsRead() 등으로 처리되므로 중복 차감 방지
                 if (readData.email !== currentUser?.email) {
-                    decrementUnreadCount(); // Zustand 스토어의 1씩 줄이는 기능 호출
+                    decrementUnreadCount();
                 }
             });
-        }
-        return () => {
+        } return () => {
             isSubscribed = false;
             chatApi.disconnect();
         };
-    }, [roomId, currentUser, setMessages, markAllAsRead]);
+
+    },[roomId, currentUser, setMessages, markAllAsRead,decrementUnreadCount]); // ✅ 의존성 배열 정리
 
 
 
-    const handleSendMessage = (text: string) => {
-        if (!roomId || !currentUser?.email || !currentUser?.userId) {
+    const handleSendMessage = () => {
+        if (!roomId || !currentUser?.email || !currentUser?.userId || !inputValue.trim()) {
+            if (!inputValue.trim()) return;
             toast.error("로그인 세션이 만료되었습니다.");
             return;
         }
-        chatApi.sendMessage(Number(roomId), currentUser.email, currentUser.userId, text, "TALK");
+        chatApi.sendMessage(Number(roomId), currentUser.email, currentUser.userId, inputValue, "TALK",{});
+
+        setInputValue("");
     };
 
     const handleFeatureAction = (feature: string) => {
         if (!roomId || !currentUser?.email) return;
 
         switch (feature) {
+            case "📷":
+                fileInputRef.current?.click(); // 숨겨진 파일 입력창 클릭 실행
+                break;
             case "📊":
                 setActiveModal("POLL");
                 break;
@@ -204,9 +331,7 @@ const ChatRoomPage: React.FC = () => {
                 );
                 toast.success("장소 정보를 전송했습니다.");
                 break;
-            case "📷":
-                toast.error("이미지 전송 기능은 준비 중입니다.");
-                break;
+
         }
     };
 
@@ -225,10 +350,11 @@ const ChatRoomPage: React.FC = () => {
         toast.success("신고가 정상적으로 접수되었습니다.");
         setReportTarget(null);
     };
-    const messageEndRef = React.useRef<HTMLDivElement>(null);
 
     const scrollToBottom = () => {
-        messageEndRef.current?.scrollIntoView({ behavior: "smooth" });
+        if (page === 0) { // ✅ 첫 페이지 로드나 새 메시지일 때만 아래로 스크롤
+            messageEndRef.current?.scrollIntoView({ behavior: "smooth" });
+        }
     };
 
     useEffect(() => {
@@ -237,16 +363,18 @@ const ChatRoomPage: React.FC = () => {
 
     const renderMessages = () => {
         let lastDateLabel = "";
-
-        return messages.map((msg, idx) => {
-            // ✅ 1. msgDate를 안전하게 생성 (sentAt이 없으면 현재 시간 사용)
+        const uniqueMessages = messages.reduce((acc, msg) => {
+            if (!acc.find(m => m.messageId === msg.messageId)) {
+                acc.push(msg);
+            }
+            return acc;
+        }, [] as typeof messages);
+        return uniqueMessages.map((msg, idx) => {
             const msgDate = msg.sentAt ? new Date(msg.sentAt) : new Date();
-
             if (isNaN(msgDate.getTime())) return null;
 
-            // ✅ 2. 위에서 만든 msgDate를 사용하여 dateLabel 생성 (currentDate 중복 선언 삭제)
             const dateLabel = msgDate.toLocaleDateString("ko-KR", {
-                year: 'numeric', month: 'long', day: 'numeric', weekday: 'long'
+                year: 'numeric', month: 'long', day: 'numeric'
             });
 
             const showDateDivider = lastDateLabel !== dateLabel;
@@ -255,13 +383,14 @@ const ChatRoomPage: React.FC = () => {
             const isMine = Number(msg.senderId) === Number(currentUser?.userId);
 
             return (
-                // messageId가 실시간 메시지에서 아직 부여되지 않았을 경우를 대비해 고유값 조합
-                <React.Fragment key={`room-${roomId}-msg-${msg.messageId || 'temp'}-${idx}-${msg.sentAt}`}>
+                <React.Fragment key={`msg-${msg.messageId}-${idx}`}>
                     {showDateDivider && (
-                        <div className="date-divider">...</div>
+                        <div className="date-divider" key={`date-${dateLabel}`}>
+                            <span>{dateLabel}</span>
+                        </div>
                     )}
                     <div className={`message-row ${isMine ? 'mine' : 'others'}`}>
-                        <ChatMessage message={msg} isMine={isMine} />
+                        <ChatMessageItem message={msg} isMine={isMine} />
                     </div>
                 </React.Fragment>
             );
@@ -274,7 +403,9 @@ const ChatRoomPage: React.FC = () => {
         <div className="chat-room-container">
             <header className="header">
                 <div className="header-content">
-                    <button className="back-btn" onClick={() => window.history.back()}>←</button>
+                    <button className="back-btn" onClick={() => window.history.back()}>
+                        ←
+                    </button>
                     <div className="header-info">
                         <div className="room-title">🌅 {roomTitle}</div>
                         <div className="room-meta">{members.length}명 참여중</div>
@@ -302,15 +433,52 @@ const ChatRoomPage: React.FC = () => {
                 <span>→</span>
             </div>
 
-            <main className="chat-container">
-                <div className="message-list-area">
-                    {renderMessages()}
-                    <div ref={messageEndRef} />
-                </div>
+            <main className="chat-container"
+                  ref={chatContainerRef}
+                  onScroll={handleScroll}
+                  style={{paddingBottom: '5header0px'}}
+            >
+                {isLoading && <div className="loading-spinner">과거 메시지 로드 중...</div>}
+                {renderMessages()}
+                <div ref={messageEndRef} />
             </main>
 
             <footer className="input-area">
-                <ChatInput onSend={handleSendMessage} onShowFeature={handleFeatureAction} />
+                <div className="quick-actions">
+                    <input
+                        type="file"
+                        ref={fileInputRef}
+                        style={{ display: 'none' }}
+                        accept="image/*"
+                        onChange={handleImageSelect}
+                    />
+                    <button className="quick-btn" onClick={() => handleFeatureAction("📷")}>📷</button>
+                    <button className="quick-btn" onClick={() => setActiveModal("POLL")}>📊</button>
+                    <button className="quick-btn" onClick={() => handleFeatureAction("📍")}>📍</button>
+                    <button className="quick-btn" onClick={() => setActiveModal("BILL")}>💰</button>
+                </div>
+                <input
+                    className="message-input"
+                    placeholder="메시지를 입력하세요..."
+                    value={inputValue} // state와 동기화
+                    onChange={(e) => setInputValue(e.target.value)} // 입력 시 state 업데이트
+                    onKeyPress={(e) => {
+                        if (e.key === "Enter") {
+                            e.preventDefault(); // 엔터 시 줄바꿈 방지
+                            handleSendMessage();
+                        }
+                    }}
+                />
+                <button
+                    className="send-btn"
+                    onClick={handleSendMessage}
+                    style={{
+                        cursor: inputValue.trim() ? 'pointer' : 'default',
+                        opacity: inputValue.trim() ? 1 : 0.6 // 내용 없을 때 시각적 피드백
+                    }}
+                >
+                    ➤
+                </button>
             </footer>
 
             {/* ✅ 정산 입력 모달 */}
@@ -318,6 +486,7 @@ const ChatRoomPage: React.FC = () => {
                 <BillInputModal
                     onClose={() => setActiveModal(null)}
                     onSubmit={(data: BillData) => handleFeatureSubmit("BILL", data)}
+                    members={roomMembers || []}
                 />
             )}
 
@@ -335,7 +504,7 @@ const ChatRoomPage: React.FC = () => {
                     <div className="side-menu active">
                         <div className="menu-header">
                             <div className="menu-title">모임 정보</div>
-                            <button className="back-btn" onClick={() => setIsMenuOpen(false)}>×</button>
+                            <button className="close-btn" onClick={() => setIsMenuOpen(false)}>×</button>
                         </div>
                         <div className="menu-section">
                             <div className="section-title">참여 멤버 ({members.length}명)</div>
@@ -344,6 +513,13 @@ const ChatRoomPage: React.FC = () => {
                                 onFollow={handleFollow}
                                 onReport={(id, name) => setReportTarget({ id, name })}
                             />
+                        </div>
+                        {/* ✅ 사이드바 하단 모임 관리 버튼 추가 (image_a85aa1.png 디자인 반영) */}
+                        <div className="menu-section admin-actions">
+                            <button className="menu-btn"><span className="icon">⚙️</span> 모임 정보 수정</button>
+                            <button className="menu-btn"><span className="icon">📢</span> 공지사항 수정</button>
+                            <button className="menu-btn"><span className="icon">📄</span> 모임 상세보기</button>
+                            <button className="menu-btn"><span className="icon">➕</span> 멤버 초대</button>
                         </div>
                         <div className="menu-section">
                             <button className="menu-btn danger" onClick={() => { if(confirm('방을 나가시겠습니까?')) window.history.back(); }}>🚪 톡방 나가기</button>

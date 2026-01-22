@@ -1,0 +1,72 @@
+.settlement-card {
+    background: #fff;
+    border-radius: 15px;
+    padding: 16px;
+    width: 260px;
+    border: 1px solid #eee;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+.settlement-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 15px;
+}
+
+.settlement-header h4 { margin: 0; color: #333; font-size: 1.1rem; }
+
+.info-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    font-size: 0.9rem;
+    color: #666;
+}
+
+.divider { height: 1px; background: #eee; margin: 12px 0; }
+
+.highlight { color: #6200ee; font-weight: bold; }
+.amount { font-size: 1.2rem; }
+
+.account-box {
+    background: #f8f9fa;
+    padding: 10px;
+    border-radius: 8px;
+    margin-top: 15px;
+    cursor: pointer;
+    text-align: center;
+}
+
+.account-label { font-size: 0.75rem; color: #999; margin: 0; }
+.account-number { font-size: 0.95rem; font-weight: 600; color: #444; margin: 4px 0 0; }
+
+.confirm-btn {
+    width: 100%;
+    margin-top: 15px;
+    background: #6200ee;
+    color: white;
+    border: none;
+    padding: 10px;
+    border-radius: 8px;
+    font-weight: bold;
+}
+
+.card-header { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.card-header h4 { margin: 0; color: #6200ee; }
+
+.detail-item { display: flex; justify-content: space-between; font-size: 0.85rem; color: #666; margin-bottom: 4px; }
+.divider { height: 1px; background: #eee; margin: 10px 0; }
+
+.per-person { text-align: center; margin-bottom: 15px; }
+.per-person .label { display: block; font-size: 0.8rem; color: #999; }
+.per-person .price { font-size: 1.2rem; font-weight: bold; color: #333; }
+
+.account-info { background: #f8f9fa; padding: 8px; border-radius: 6px; cursor: pointer; text-align: center; }
+.account-info p { margin: 0; font-size: 0.85rem; font-weight: 500; }
+.account-info small { color: #aaa; font-size: 0.7rem; }
+
+.pay-check-btn {
+    width: 100%; margin-top: 12px; background: #6200ee; color: white;
+    border: none; padding: 8px; border-radius: 6px; font-weight: 600; cursor: pointer;
+}

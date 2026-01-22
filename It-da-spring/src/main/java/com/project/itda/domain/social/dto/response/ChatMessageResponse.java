@@ -5,6 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import java.time.LocalDateTime;
+import java.util.Map;
 
 @Getter
 @Builder
@@ -17,4 +18,5 @@ public class ChatMessageResponse {
     private MessageType type;   // 타입 [cite: 270]
     private LocalDateTime sentAt; // 전송 시간 [cite: 280]
     private int unreadCount;
+    private Map<String, Object> metadata;
 }

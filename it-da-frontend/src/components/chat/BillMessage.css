@@ -1,0 +1,118 @@
+/* src/styles/chat/BillMessage.css */
+
+.bill-calc-card {
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 20px;
+    width: 100%;
+    max-width: 500px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    border: 1px solid #eee;
+    box-sizing: border-box
+}
+
+.bill-calc-header {
+    font-weight: 800;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.bill-calc-summary {
+    border-bottom: 1px solid #f1f3f5;
+    padding-bottom: 16px;
+    margin-bottom: 16px;
+}
+
+.row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 6px;
+}
+
+.row.per {
+    color: #6c5ce7;
+    font-size: 1.1rem;
+}
+
+/* ✅ 멤버 리스트 레이아웃 (겹침 방지) */
+.bill-member-list {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr); /* 2열 배치 */
+    gap: 12px;
+    margin-top: 10px;
+}
+
+.bill-member-row {
+    background: #f8f9fa;
+    padding: 14px;
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column; /* 세로로 텍스트 정렬 */
+    gap: 8px;
+    cursor: pointer;
+    border: 2px solid transparent;
+    min-height: 60px
+}
+
+.bill-member-row.is-paid {
+    background: #f0f4ff;
+    border-color: #6c5ce7;
+}
+
+.member-name-row {
+    display: flex;
+    justify-content: space-between;
+    font-weight: 600;
+    font-size: 0.9rem;
+    width: 100%;
+}
+
+.check-circle {
+    color: #6c5ce7;
+}
+
+.bill-calc-footer {
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid #f1f3f5;
+    font-size: 0.85rem;
+    color: #868e96;
+    text-align: center;
+}
+.bill-member-row .amount {
+    font-weight: 700;
+    color: #6c5ce7;
+    text-align: left;
+}
+.account-input-row,
+.modal-btns {
+    display: flex !important;
+    gap: 12px !important;    /* 위아래 간격을 12px로 통일 */
+    width: 100% !important;
+    box-sizing: border-box;
+    margin-top: 20px;        /* 상단 요소와의 간격 */
+}
+.bank-input,
+.cancel-btn {
+    flex: 1 !important;     /* 1의 비율 */
+    min-width: 0;
+}
+
+.account-num-input,
+.submit-btn {
+    flex: 2 !important;     /* 2의 비율 */
+    min-width: 0;
+}
+.me-badge {
+    font-size: 0.8rem;
+    color: #6c5ce7; /* 포인트 컬러 */
+    font-weight: bold;
+    margin-left: 4px;
+    vertical-align: middle;
+}
+
+.participant-item.paid .me-badge {
+    color: #adb5bd; /* 입금 완료 시 흐리게 처리 */
+}

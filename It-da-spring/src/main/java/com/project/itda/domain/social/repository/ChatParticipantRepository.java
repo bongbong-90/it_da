@@ -2,6 +2,8 @@ package com.project.itda.domain.social.repository;
 
 import com.project.itda.domain.social.entity.ChatParticipant;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -18,4 +20,7 @@ public interface ChatParticipantRepository extends JpaRepository<ChatParticipant
 
     // 유저와 방 ID로 참여자 정보 찾기
     Optional<ChatParticipant> findByChatRoomIdAndUserEmail(Long chatRoomId, String email);
+
+    @Query("SELECT cp.lastReadAt FROM ChatParticipant cp WHERE cp.chatRoom.id = :roomId")
+    List<LocalDateTime> findAllLastReadAtByRoomId(@Param("roomId") Long roomId);
 }

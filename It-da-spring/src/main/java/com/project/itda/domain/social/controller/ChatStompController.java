@@ -1,5 +1,6 @@
 package com.project.itda.domain.social.controller;
 
+import com.project.itda.domain.social.enums.MessageType;
 import com.project.itda.domain.social.repository.ChatParticipantRepository;
 import com.project.itda.domain.social.service.ChatMessageService;
 import com.project.itda.domain.social.service.ChatRoomService;
@@ -26,25 +27,43 @@ public class ChatStompController {
 
     // ChatStompController.java 수정
     @MessageMapping("/chat/send/{roomId}")
-    public void sendMessage(@DestinationVariable Long roomId, Map<String, String> message, SimpMessageHeaderAccessor headerAccessor) {
-        String email = message.get("email");
+    public void sendMessage(@DestinationVariable Long roomId, Map<String, Object> message, SimpMessageHeaderAccessor headerAccessor) {
+        String email =(String) message.get("email");
+        User sender = userRepository.findByEmail(email).orElseThrow();
 
-        // 💡 1. 자신의 상태를 먼저 DB에 반영 (인원수 카운트 정확도 향상)
         chatRoomService.updateLastReadAt(roomId, email);
 
-        // 💡 2. 이제 3명 중 2명이 접속 안 했더라도 DB에는 3명이 있으므로 count는 3이 됨
-        long participantCount = chatParticipantRepository.countByChatRoomId(roomId);
+        String finalNickname = (sender.getNickname() != null && !sender.getNickname().trim().isEmpty())
+                ? sender.getNickname()
+                : sender.getUsername();
 
-        // 💡 3. unreadCount = 3(전체) - 1(나) = 2 (나머지 2명이 아직 안 읽음)
-        long unreadCount = Math.max(0, participantCount - 1);
+        // 💡 1. 자신의 상태를 먼저 DB에 반영 (인원수 카운트 정확도 향상)
+        long totalparticipants = chatParticipantRepository.countByChatRoomId(roomId);
+        int initialUnreadCount =(int) Math.max(0, totalparticipants - 1);
 
-        User sender = userRepository.findByEmail(email).orElseThrow();
-        message.put("senderNickname", sender.getNickname() != null ? sender.getNickname() : sender.getUsername());
-        message.put("unreadCount", String.valueOf(unreadCount));
-        message.put("senderId", String.valueOf(sender.getUserId()));
+        // ✅ 2. 데이터 타입에 맞게 값 설정 (String.valueOf 제거 가능)
+        message.put("senderNickname", finalNickname);
+        message.put("unreadCount",  initialUnreadCount);
+        message.put("senderId", sender.getUserId());
         message.put("messageId", String.valueOf(System.currentTimeMillis()));
 
-        chatMessageService.saveMessage(email, roomId, message.get("content"));
+        String typeStr = message.getOrDefault("type", "TALK").toString();
+        com.project.itda.domain.social.enums.MessageType messageType;
+        try {
+            messageType = com.project.itda.domain.social.enums.MessageType.valueOf(typeStr);
+        } catch (IllegalArgumentException e) {
+            messageType = com.project.itda.domain.social.enums.MessageType.TALK;
+        }
+
+        Object rawMetadata = message.get("metadata");
+        Map<String, Object> metadata = (rawMetadata instanceof Map) ? (Map<String, Object>) rawMetadata : null;
+
+        if (messageType == MessageType.BILL || metadata != null) {
+            chatMessageService.saveMessageWithMetadata(email, roomId, (String) message.get("content"), messageType, metadata);
+        } else {
+            chatMessageService.saveMessage(email, roomId, (String) message.get("content"), messageType);
+        }
+
         messagingTemplate.convertAndSend("/topic/room/" + roomId, message);
     }
     @MessageMapping("/chat/read/{roomId}")
@@ -55,6 +74,8 @@ public class ChatStompController {
         // 나중에 WebSocketEventListener가 누구인지 알고 지울 수 있습니다.
         headerAccessor.getSessionAttributes().put("userEmail", email);
         headerAccessor.getSessionAttributes().put("roomId", roomId);
+
+        chatRoomService.userJoined(roomId, email);
 
         chatRoomService.updateLastReadAt(roomId, email);
         messagingTemplate.convertAndSend("/topic/room/" + roomId + "/read", payload);

@@ -1,0 +1,83 @@
+/* ChatRoomPage.css 에 추가 */
+
+/* 멤버 아이템 전체 레이아웃 */
+.member-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px;
+    border-radius: 8px;
+    transition: background 0.3s;
+}
+
+.member-item:hover {
+    background-color: #f8f9fa;
+}
+
+/* 아바타 원형 디자인 */
+.member-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #6366f1, #a855f7); /* 인디고-퍼플 그라데이션 */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: bold;
+    flex-shrink: 0;
+}
+
+/* 텍스트 정보 영역 */
+.member-info {
+    flex: 1;
+    min-width: 0; /* 텍스트 생략(...) 처리를 위한 설정 */
+}
+
+.member-name {
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: #1f2937;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis; /* 이름이 길면 ... 처리 */
+}
+
+.member-role {
+    font-size: 0.75rem;
+    color: #6b7280;
+    margin-top: 2px;
+}
+
+/* 사이드바 전용 버튼 공통 스타일 */
+.btn-mini {
+    padding: 4px 12px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    border-radius: 12px;
+    border: 1px solid;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.btn-follow {
+    border-color: #6366f1;
+    color: #6366f1;
+    background: white;
+}
+
+.btn-follow:hover {
+    background: #6366f1;
+    color: white;
+}
+
+.btn-report {
+    border-color: #ef4444;
+    color: #ef4444;
+    background: white;
+}
+
+.btn-report:hover {
+    background: #ef4444;
+    color: white;
+}

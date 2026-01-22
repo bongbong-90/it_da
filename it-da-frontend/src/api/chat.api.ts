@@ -23,8 +23,11 @@ class ChatApi {
         return response.data;
     }
 
-    async getChatMessages(roomId: number): Promise<ChatMessage[]> {
-        const response = await axios.get(`${API_BASE_URL}/api/social/messages/${roomId}`, { withCredentials: true });
+    async getChatMessages(roomId: number, page: number = 0, size: number = 50): Promise<ChatMessage[]> {
+        const response = await axios.get(`${API_BASE_URL}/api/social/messages/${roomId}`, {
+            params: { page, size },
+            withCredentials: true
+        });
         return response.data;
     }
 
@@ -41,11 +44,16 @@ class ChatApi {
             debug: (str) => console.log(str),
             onConnect: () => {
                 console.log(`✅ 채팅방 ${roomId} 연결 성공`);
+                this.sendReadEvent(roomId, userEmail);
                 this.markAsRead(roomId, userEmail);
 
                 // 메시지 수신 구독
                 this.client?.subscribe(`/topic/room/${roomId}`, (message: IMessage) => {
-                    onMessageReceived(JSON.parse(message.body));
+                    const data = JSON.parse(message.body);
+
+                    // ✅ BILL_UPDATE 또는 VOTE_UPDATE 메시지는 그대로 전달
+                    // useChatStore의 addMessage에서 알아서 처리함
+                    onMessageReceived(data);
                 });
 
                 // ✅ 읽음 이벤트 구독 추가
@@ -81,6 +89,7 @@ class ChatApi {
                 type: type,
                 metadata: metadata,
             };
+            console.log("📤 전송하는 메시지:", payload);
             this.client.publish({
                 destination: `/app/chat/send/${roomId}`,
                 body: JSON.stringify(payload),
@@ -121,6 +130,19 @@ class ChatApi {
             });
         }
     }
+    async uploadImage(roomId: number, file: File): Promise<string> {
+        const formData = new FormData();
+        formData.append('file', file); // 백엔드 @RequestParam("file")과 일치
+
+        const response = await axios.post(`${API_BASE_URL}/api/social/chat/images/${roomId}`, formData, {
+            withCredentials: true,
+            headers: {
+                'Content-Type': 'multipart/form-data',
+            },
+        });
+        return response.data.imageUrl; // 서버에서 반환한 /uploads/... 경로
+    }
+
 }
 
 export const chatApi = new ChatApi();

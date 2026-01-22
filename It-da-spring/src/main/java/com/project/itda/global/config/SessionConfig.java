@@ -14,6 +14,7 @@ public class SessionConfig {
         // 로컬 환경에서 쿠키 전달을 원활하게 하기 위해 Lax 설정 (필요시 None)
         serializer.setSameSite("Lax");
         serializer.setUseHttpOnlyCookie(true);
+        serializer.setDomainNamePattern("^.+?\\.(.+?\\..+)$");
         return serializer;
     }
 }

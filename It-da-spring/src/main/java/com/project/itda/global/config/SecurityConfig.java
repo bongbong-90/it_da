@@ -63,7 +63,7 @@ public class SecurityConfig {
                 .logout(logout -> logout
                         .logoutUrl("/api/auth/logout")
                         .invalidateHttpSession(true)
-                        .deleteCookies("JSESSIONID")
+                        .deleteCookies("SESSION")
                         .logoutSuccessHandler((request, response, authentication) -> {
                             response.setStatus(200);
                         })
@@ -86,11 +86,11 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOriginPatterns(Arrays.asList("*"));
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));  // ✅ PATCH 추가!
+        configuration.setAllowedOrigins(Arrays.asList("http://localhost:3000"));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
         configuration.setAllowCredentials(true);
-        configuration.setExposedHeaders(Arrays.asList("Set-Cookie"));
-
+        configuration.setExposedHeaders(Arrays.asList("Set-Cookie","Authorization"));
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;

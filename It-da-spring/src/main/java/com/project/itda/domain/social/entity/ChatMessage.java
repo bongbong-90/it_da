@@ -3,11 +3,13 @@ package com.project.itda.domain.social.entity;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.project.itda.domain.social.enums.MessageType;
 import com.project.itda.domain.user.entity.User;
+import com.project.itda.global.common.JsonToMapConverter;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
+import java.util.Map;
 
 @Entity
 @Table(name = "chat_messages")
@@ -47,4 +49,10 @@ public class ChatMessage {
     @CreationTimestamp // [cite: 279]
     @Column(name = "created_at", updatable = false) // [cite: 280]
     private LocalDateTime createdAt; // [cite: 280]
+
+    @Column(columnDefinition = "TEXT")
+    @Convert(converter = JsonToMapConverter.class) // JSON 문자열 <-> Map 변환기 사용 추천
+    private Map<String, Object> metadata;
+
+    public void updateMetadata(Map<String, Object> metadata) { this.metadata = metadata; }
 }

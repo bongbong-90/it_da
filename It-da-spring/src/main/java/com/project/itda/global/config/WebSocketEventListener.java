@@ -1,4 +1,4 @@
-package com.project.itda.global.websocket;
+package com.project.itda.global.config;
 
 import com.project.itda.domain.social.service.ChatRoomService;
 import lombok.RequiredArgsConstructor;
@@ -19,13 +19,12 @@ public class WebSocketEventListener {
     public void handleWebSocketDisconnectListener(SessionDisconnectEvent event) {
         StompHeaderAccessor headerAccessor = StompHeaderAccessor.wrap(event.getMessage());
 
-        // ChatStompController의 sendMessage에서 저장한 세션 정보를 꺼냅니다.
-        String email = (String) headerAccessor.getSessionAttributes().get("userEmail");
+        String userEmail = (String) headerAccessor.getSessionAttributes().get("userEmail");
         Long roomId = (Long) headerAccessor.getSessionAttributes().get("roomId");
 
-        if (email != null && roomId != null) {
-            // ✅ 연결이 끊기면 참여자 테이블에서 삭제하여 카운트 감소
-            chatRoomService.leaveChatRoom(roomId, email);
+        if (userEmail != null && roomId != null) {
+            chatRoomService.userLeft(roomId, userEmail);
+            log.info("WebSocket 연결 해제: 사용자={}, 방={}", userEmail, roomId);
         }
     }
 }

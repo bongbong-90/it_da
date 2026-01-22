@@ -1,0 +1,137 @@
+/* src/components/chat/VoteMessage.css - 전체 교체 */
+
+.vote-card-v2.full-width {
+    width: 100% !important; /* ✅ 부모 너비 100% 확보 */
+    min-width: 300px;
+    max-width: 500px;
+    background: #ffffff;
+    border: 1px solid #e9ecef;
+    border-radius: 16px;
+    padding: 20px;
+    box-sizing: border-box;
+}
+.vote-header-v2 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 20px;
+}
+
+.vote-icon {
+    font-size: 20px;
+}
+
+.vote-title {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+    color: #212529;
+}
+
+.vote-options-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 20px;
+    border: none;
+}
+
+.vote-bar-wrapper {
+    cursor: pointer;
+    padding: 12px 16px; /* ✅ 높이를 적절히 조절하여 글자 가림 방지 */
+    border-radius: 12px;
+    border: 1.5px solid #eee;
+    background: #ffffff;
+    margin-bottom: 10px;
+    display: flex;
+    flex-direction: column;
+    width:100%;
+}
+
+.vote-bar-wrapper:hover {
+    background: #fafbff;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(108, 92, 231, 0.15);
+}
+
+.vote-bar-wrapper.selected {
+    border-color: #6c5ce7;
+    background: #f8f7ff;
+    border: 2px solid #6c5ce7;
+}
+
+.vote-option-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.option-text {
+    font-size: 16px;
+    font-weight: 600;
+    color: #333 !important;
+    margin-bottom: 6px;
+}
+
+.vote-bar-wrapper.selected .option-text {
+    color: #6c5ce7;
+    font-weight: 700;
+}
+
+.check-mark {
+    font-size: 20px;
+    margin-left: 8px;
+    flex-shrink: 0;
+}
+
+.vote-progress-container {
+    height: 12px;
+    background: #f1f3f5;
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 10px;
+}
+
+.vote-progress-fill {
+    height: 8px;
+    background: #d1d8ff;
+    border-radius: 4px;
+    transition: width 0.4s ease;
+}
+
+.vote-bar-wrapper.selected .vote-progress-fill {
+    background: linear-gradient(90deg, #a29bfe, #6c5ce7);
+}
+
+.vote-stat-info {
+    font-size: 13px;
+    color: #a29bfe;
+    font-weight: 600;
+    text-align: right;
+}
+
+.vote-bar-wrapper:not(.selected) .vote-stat-info {
+    color: #868e96;
+    font-weight: 600;
+}
+
+.vote-footer-v2 {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid #e9ecef;
+    color: #868e96;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.dot {
+    color: #dee2e6;
+}
+.vote-bar-wrapper.selected .vote-stat-info {
+    color: #6c5ce7;
+}

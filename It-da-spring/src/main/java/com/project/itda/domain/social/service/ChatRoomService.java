@@ -15,8 +15,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @Service
@@ -27,6 +27,33 @@ public class ChatRoomService {
     private final ChatRoomRepository chatRoomRepository;
     private final ChatParticipantRepository chatParticipantRepository;
     private final UserRepository userRepository;
+
+    // ✅ [추가] 실시간 접속자 관리: Map<방ID, Set<접속중인 유저이메일>>
+    // ConcurrentHashMap을 사용하여 멀티스레드 환경에서도 안전하게 관리합니다.
+    private final Map<Long, Set<String>> connectedUsers = new ConcurrentHashMap<>();
+
+    // ✅ [추가] 현재 방에 접속 중인 인원수 반환 메서드 (StompController에서 호출)
+    public int getConnectedCount(Long roomId) {
+        return connectedUsers.getOrDefault(roomId, new HashSet<>()).size();
+    }
+
+    // ✅ [추가] 유저가 방에 입장했을 때 호출 (Read 신호 시)
+    public void userJoined(Long roomId, String email) {
+        connectedUsers.computeIfAbsent(roomId, k -> ConcurrentHashMap.newKeySet()).add(email);
+        log.info("채팅방 입장 - 유저: {}, 방: {}, 현재 접속자: {}명", email, roomId, getConnectedCount(roomId));
+    }
+
+    // ✅ [추가] 유저가 방에서 나갔을 때 호출 (Disconnect 시)
+    public void userLeft(Long roomId, String email) {
+        if (connectedUsers.containsKey(roomId)) {
+            connectedUsers.get(roomId).remove(email);
+            // 방에 아무도 없으면 메모리 절약을 위해 해당 방 키 삭제
+            if (connectedUsers.get(roomId).isEmpty()) {
+                connectedUsers.remove(roomId);
+            }
+        }
+        log.info("채팅방 퇴장 - 유저: {}, 방: {}, 현재 접속자: {}명", email, roomId, getConnectedCount(roomId));
+    }
 
     @Transactional
     public ChatRoom createChatRoom(String name) {

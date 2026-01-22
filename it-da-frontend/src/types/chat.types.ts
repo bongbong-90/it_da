@@ -16,3 +16,10 @@ export interface ChatRoomInfo {
   participantCount: number;
   notice?: string;
 }
+
+interface BillData {
+    totalAmount: number;    // 총 금액
+    participantCount: number; // 정산 참여 인원 수 [새로 추가]
+    account: string;        // 입금 계좌
+    amountPerPerson: number; // 1인당 금액 (계산된 값)
+}
