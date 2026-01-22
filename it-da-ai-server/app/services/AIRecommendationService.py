@@ -28,6 +28,12 @@ class AIRecommendationService:
     PROMPT_STOP = {"모임", "스터디", "추천", "해줘", "해주세요", "같이", "할만한", "할", "하는", "원해", "싶어"}
     PROMPT_STOP |= {"할수있는", "할수있", "가능한", "가능", "해볼만한", "할만한거", "만한거", "거", "것"}
 
+    STUDY_EVIDENCE = [
+        "스터디", "공부", "독서", "토익", "오픽", "영어", "자격증", "코딩", "개발", "프로그래밍", "세미나", "강의",
+        # ✅ 추가
+        "집중", "집중할", "몰입", "열공", "공부할", "공부하기", "조용히 공부"
+    ]
+
     SYN_MAP = {
         # 스터디 계열
         "영어회화": ["영어", "회화", "스피킹"],
@@ -62,6 +68,12 @@ class AIRecommendationService:
         "포토": ["사진", "촬영", "포토", "카메라", "스냅", "필카"],
         "촬영": ["사진", "촬영", "포토", "카메라", "스냅", "필카"],
     })
+    
+    SYN_MAP.update({
+        "집중": ["스터디카페", "도서관", "열람실", "코워킹", "독서"],
+        "공부": ["스터디카페", "도서관", "열람실", "코워킹"],
+    })
+
 
     def __init__(
         self,
@@ -2421,23 +2433,29 @@ class AIRecommendationService:
 
         # ✅ 핵심: 스터디 증거가 없는데 GPT가 스터디로 찍으면 제거/교정
         if cat == "스터디" and not has_study:
-            # 선택지 A) category를 제거해서 "야외 + 조용"만으로 넓게 찾기
             q.pop("category", None)
             q.pop("subcategory", None)
 
-            # 선택지 B) 너 DB에 맞춰 '문화예술'로 교정 (야외 조용이면 산책/사진 쪽이 자연스러움)
-            # q["category"] = "문화예술"
-            # q.pop("subcategory", None)
+            # ✅ 여기 조건 추가: 야외일 때만 산책 키워드 주입
+            if lt == "OUTDOOR" and has_quiet:
+                kws = q.get("keywords") or []
+                for w in ["산책", "사진", "피크닉", "공원"]:
+                    if w not in kws:
+                        kws.append(w)
+                q["keywords"] = kws[:8]
 
-            # 키워드 힌트 조금 주면 GPT/랭킹에도 도움 됨 (DB에 없어도 query_terms 보강용)
-            kws = q.get("keywords") or []
-            for w in ["산책", "사진", "피크닉", "공원"]:
-                if w not in kws:
-                    kws.append(w)
-            q["keywords"] = kws[:8]
-
-            # confidence 너무 높게 믿지 말자
-            q["confidence"] = min(float(q.get("confidence", 0) or 0), 0.65)
+            # ✅ 실내인데 집중/조용이면 오히려 스터디 기본 키워드가 맞음
+            if lt == "INDOOR" and ("집중" in text or "조용" in text):
+                q["category"] = "스터디"
+                kws = q.get("keywords") or []
+                for w in ["스터디카페", "도서관", "열람실", "코워킹", "독서"]:
+                    if w not in kws:
+                        kws.append(w)
+                q["keywords"] = kws[:8]
+                q["vibe"] = q.get("vibe") or "집중"
+                q["confidence"] = max(float(q.get("confidence", 0) or 0), 0.65)
+            else:
+                q["confidence"] = min(float(q.get("confidence", 0) or 0), 0.65)
 
         # ✅ 야외 + 조용인데 카테고리가 비어있으면 문화예술로 기본값 주는 것도 가능
         if (not q.get("category")) and lt == "OUTDOOR" and has_quiet:
