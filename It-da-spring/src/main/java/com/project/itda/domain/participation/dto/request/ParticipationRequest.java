@@ -26,6 +26,8 @@ public class ParticipationRequest {
     @Size(max = 500, message = "신청 메시지는 500자 이하로 작성해주세요")
     private String applicationMessage;
 
+    private Long userId;  // optional (Spring Security 실패 시 fallback)
+
     /**
      * 추천 유형 (AI/SEARCH/DIRECT)
      */

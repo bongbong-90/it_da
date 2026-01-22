@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useAuthStore } from "@/stores/useAuthStore";
 import "./AIMatchingPage.css";
+import axios from "@/lib/axiosConfig";
 
 interface SearchTraceStep {
   level: number;
@@ -97,7 +98,7 @@ const AIMatchingPage = () => {
 
   const fetchAIRecommendations = async (
     userPrompt: string,
-    signal?: AbortSignal
+    signal?: AbortSignal,
   ) => {
     setLoading(true);
     try {
@@ -112,7 +113,7 @@ const AIMatchingPage = () => {
             user_id: user?.userId || 1,
             top_n: 5,
           }),
-        }
+        },
       );
       if (!response.ok) throw new Error("AI 검색 실패");
       const data = await response.json();
@@ -135,24 +136,26 @@ const AIMatchingPage = () => {
   };
 
   const joinMeeting = async (meetingId: number) => {
+    // ✅ user 체크 먼저
+    if (!user?.userId) {
+      alert("로그인이 필요합니다.");
+      navigate("/login");
+      return;
+    }
+
     try {
-      const response = await fetch(
-        `http://localhost:8080/api/meetings/${meetingId}/join`,
+      const response = await axios.post(
+        "http://localhost:8080/api/participations",
         {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
-          },
-        }
+          meetingId: meetingId,
+          userId: user.userId, // ✅ 여기 추가!
+        },
+        { withCredentials: true },
       );
 
-      if (!response.ok) {
-        throw new Error("모임 참여 실패");
-      }
-
-      navigate(`/chatroom/${meetingId}`);
-    } catch (error) {
+      alert("모임 참여 신청이 완료되었습니다!");
+      navigate(`/chat/${meetingId}`);
+    } catch (error: any) {
       console.error("모임 참여 에러:", error);
       alert("모임 참여 신청에 실패했습니다.");
     }
@@ -209,7 +212,7 @@ const AIMatchingPage = () => {
   const expectedCost = safeNumber(currentMeeting.expected_cost, 0);
   const currentParticipants = safeNumber(
     currentMeeting.current_participants,
-    0
+    0,
   );
   const maxParticipants = safeNumber(currentMeeting.max_participants, 0);
   const matchScore = safeNumber(currentMeeting.match_score, 0);

@@ -44,13 +44,20 @@ public class ParticipationController {
     )
     @PostMapping
     public ResponseEntity<ParticipationResponse> applyParticipation(
-            @AuthenticationPrincipal Long userId,
+            @AuthenticationPrincipal Long userId,  // ← 이건 null 올 수 있음
             @Valid @RequestBody ParticipationRequest request
     ) {
         log.info("📍 POST /api/participations - userId: {}, meetingId: {}",
                 userId, request.getMeetingId());
 
-        User user = userRepository.findById(userId)
+        // ✅ userId가 null이면 request에서 가져오기
+        Long actualUserId = userId != null ? userId : request.getUserId();
+
+        if (actualUserId == null) {
+            throw new IllegalArgumentException("로그인이 필요합니다.");
+        }
+
+        User user = userRepository.findById(actualUserId)
                 .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
 
         ParticipationResponse response = participationService.applyParticipation(user, request);
