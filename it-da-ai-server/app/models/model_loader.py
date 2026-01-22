@@ -8,6 +8,8 @@ from app.models.kcelectra_model import KcELECTRAModel
 from app.models.svd_model import SVDModel
 from app.core.feature_builder import FeatureBuilder
 from typing import Optional
+import warnings
+import os
 
 
 class ModelLoader:
@@ -24,8 +26,17 @@ class ModelLoader:
         return cls._instance
 
     def __init__(self):
+        # ⭐ LightGBM 경고 억제
+        warnings.filterwarnings('ignore', category=UserWarning)
+
         if self._initialized:
             return
+
+        # ⭐ 초기화 시점에 경고 완전 차단
+        import logging
+        warnings.filterwarnings('ignore')
+        os.environ['LIGHTGBM_VERBOSITY'] = '-1'
+        logging.getLogger('lightgbm').setLevel(logging.ERROR)
 
         # 모델 초기화
         self.ranker: Optional[LightGBMRankerModel] = None      # ✅ Ranker (검색/피드용)

@@ -1,6 +1,8 @@
 from typing import Dict, Tuple, List
 import numpy as np
 import math
+import json
+import re
 
 
 class FeatureBuilder:
@@ -18,19 +20,19 @@ class FeatureBuilder:
         # ✅ 더미 데이터 14개 vibe → 8개로 매핑
         self.vibe_mapping = {
             "활기찬": "활기찬",
-            "에너지 넘치는": "활기찬",  # 활기찬으로 통합
+            "에너지 넘치는": "활기찬",
             "건강한": "건강한",
             "여유로운": "여유로운",
-            "맛있는": "여유로운",  # 여유로운으로 통합
+            "맛있는": "여유로운",
             "힐링": "힐링",
             "감성적인": "감성적인",
-            "예술적인": "감성적인",  # 감성적인으로 통합
-            "창의적인": "감성적인",  # 감성적인으로 통합
+            "예술적인": "감성적인",
+            "창의적인": "감성적인",
             "진지한": "진지한",
-            "집중적인": "진지한",  # 진지한으로 통합
+            "집중적인": "진지한",
             "배움": "배움",
             "즐거운": "즐거운",
-            "자유로운": "즐거운",  # 즐거운으로 통합
+            "자유로운": "즐거운",
         }
 
         self.time_slots = ["MORNING", "AFTERNOON", "EVENING", "NIGHT"]
@@ -39,6 +41,23 @@ class FeatureBuilder:
         # ✅ 고정 feature 길이: 12 + 7 + 8 = 27
         base = 12
         self.n_features = base + len(self.categories) + len(self.vibes)
+
+        # ✅ 카테고리(상위 관심사) → 서브카테고리(구체 활동) 확장
+        # 베이커리 ✅ 카페로 분류
+        self.expand_interest = {
+            "문화예술": {"전시회", "공연", "갤러리", "공방체험"},
+            "스터디": {"코딩", "영어회화", "독서토론", "재테크"},
+            "취미활동": {"그림", "베이킹", "쿠킹", "플라워"},
+            "소셜": {"보드게임", "방탈출", "볼링", "당구"},
+            "스포츠": {"러닝", "축구", "배드민턴", "요가", "사이클링", "등산", "클라이밍"},
+            "맛집": {"한식", "중식", "일식", "양식", "이자카야"},
+            "카페": {"브런치", "디저트", "카페투어", "베이커리"},  # ✅ 여기!
+        }
+
+        # ✅ 유저가 “손으로/손” 같이 말하면 취미활동 쪽을 더 잘 끌어오도록
+        # (FeatureBuilder는 prompt를 모르니까, AI 서비스에서 query_terms로 bonus 주는 건 너가 이미 하고 있고,
+        #  여기선 “관심사 확장”만 안정적으로)
+        # 필요하면 여기서 alias도 추가 가능.
 
     def _normalize_vibe(self, vibe: str) -> str:
         """14개 vibe를 8개로 매핑"""
@@ -59,14 +78,62 @@ class FeatureBuilder:
         c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
         return R * c
 
-    def calculate_interest_match(self, user_interests: str, meeting_category: str) -> float:
-        if not user_interests or not meeting_category:
+    # -------------------------
+    # ✅ NEW: robust interest parsing + subcategory-aware match
+    # -------------------------
+    def _parse_user_interests(self, user_interests) -> set:
+        """
+        입력 형태:
+        - '["아웃도어","취미활동","문화예술","맛집"]' (JSON string)
+        - '취미활동, 문화예술, 카페'
+        - '취미활동 문화예술 카페'
+        """
+        if not user_interests:
+            return set()
+
+        s = str(user_interests).strip()
+
+        # JSON list 문자열 대응
+        if s.startswith("[") and s.endswith("]"):
+            try:
+                arr = json.loads(s)
+                return {str(x).strip().lower() for x in arr if str(x).strip()}
+            except Exception:
+                pass
+
+        # 콤마/공백 혼용 대응
+        parts = re.split(r"[,\s]+", s)
+        return {p.strip().lower() for p in parts if p.strip()}
+
+    def calculate_interest_match(self, user_interests: str, meeting_category: str, meeting_subcategory: str = "") -> float:
+        """
+        관심사 매칭 점수 (0~1)
+        - 유저 관심사(카페/문화예술/취미활동/...)가
+          모임 category/subcategory(브런치/전시회/...)와 매칭되도록 확장
+        """
+        u = self._parse_user_interests(user_interests)
+        if not u:
             return 0.0
-        user_keywords = set(str(user_interests).lower().split(", "))
-        meeting_keywords = set(str(meeting_category).lower().split())
-        if not user_keywords:
-            return 0.0
-        return len(user_keywords & meeting_keywords) / len(user_keywords)
+
+        # 모임 토큰: category + subcategory
+        m_tokens = set()
+        if meeting_category:
+            m_tokens.add(str(meeting_category).strip().lower())
+        if meeting_subcategory:
+            m_tokens.add(str(meeting_subcategory).strip().lower())
+
+        # 유저 관심사 확장: "카페" 관심사면 {"브런치","디저트","카페투어","베이커리"}도 관심사로 간주
+        u_expanded = set(u)
+        for k, subs in self.expand_interest.items():
+            if k.lower() in u:
+                u_expanded |= {x.strip().lower() for x in subs}
+
+        # hit 계산
+        hit = len(u_expanded & m_tokens)
+
+        # 정규화: 유저 관심사 개수 기준 (너무 작아지는 것 방지)
+        denom = max(1, len(u))
+        return hit / denom
 
     def calculate_cost_match(self, user_budget_type: str, meeting_cost: int) -> float:
         cost_ranges = {
@@ -102,8 +169,11 @@ class FeatureBuilder:
         time_match = 1.0 if user.get("time_preference") == meeting.get("time_slot") else 0.0
         location_type_match = 1.0 if user.get("user_location_pref") == meeting.get("meeting_location_type") else 0.0
 
+        # ✅ category + subcategory 반영
         interest_match_score = self.calculate_interest_match(
-            user.get("interests", ""), meeting.get("category", "")
+            user.get("interests", ""),
+            meeting.get("category", ""),
+            meeting.get("subcategory", ""),
         )
 
         cost_match_score = self.calculate_cost_match(

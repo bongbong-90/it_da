@@ -2,12 +2,14 @@
 AI Routes for Spring Boot Integration
 """
 import random
+import requests
 
 from fastapi import APIRouter, HTTPException, Depends, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from typing import List, Dict, Optional, Tuple
+
 import time
 import math
 
@@ -15,11 +17,14 @@ import app
 from app.models.model_loader import model_loader
 from app.core.logging import logger
 from app.schemas.ai_schemas import AISearchRequest, AISearchResponse
+from app.core.feature_builder import FeatureBuilder
 from app.services.gpt_prompt_service import GPTPromptService
 from app.services.AIRecommendationService import AIRecommendationService
 import math
 import uuid
 import os
+
+feature_builder = FeatureBuilder()
 
 router = APIRouter(prefix="/api/ai/recommendations", tags=["AI"])
 
@@ -813,47 +818,267 @@ async def get_match_scores(req: MatchScoresRequest):
     if not meeting_ids:
         return {"success": True, "userId": user_id, "items": []}
 
-    # SVD 없으면 대충 반환
     if not model_loader.svd or not model_loader.svd.is_loaded():
         return {
             "success": True,
             "userId": user_id,
-            "items": [{"meetingId": mid, "predictedRating": 3.7, "matchPercentage": 75, "matchLevel": "MEDIUM"} for mid in meeting_ids]
+            "items": [{"meetingId": mid, "predictedRating": 3.7, "matchPercentage": 75, "matchLevel": "MEDIUM"} for mid
+                      in meeting_ids]
         }
 
+    # 1) SVD 예측
     preds = await model_loader.svd.predict_for_user_meetings(user_id, meeting_ids)
-    values = [float(v) for v in preds.values()]
-    n = len(values)
+    print(f"🔍 SVD 예측값: {preds}")
 
-    # 후보 적을 때는 100% 방지용 "동적 상한"
-    def dynamic_ceil(n: int) -> int:
-        if n <= 2:
-            return 82
-        if n <= 3:
-            return 85
-        if n <= 5:
-            return 88
-        if n <= 10:
-            return 90
-        return 92
+    # 2) 실제 DB에서 데이터 가져오기
+    user_info = await get_user_info_from_db(user_id)
+    meetings_info = await get_meetings_info_from_db(meeting_ids)
 
-    ceil = dynamic_ceil(n)
-    floor = 40 if n <= 5 else 35  # 적을수록 바닥을 조금 올려서 보기 좋게
+    if not meetings_info:
+        print("⚠️ 모임 정보를 가져올 수 없음")
+        return {"success": True, "userId": user_id, "items": []}
 
-    # 카드가 1개면 rating 기반으로만
-    if n < 2:
-        items = []
-        for mid, r in preds.items():
-            r = float(r)
-            mp = rating_to_match_score_sigmoid(r, mid=3.55, temp=0.45)  # 완만하게
-            mp = int(max(floor, min(ceil, mp)))
-            items.append({
-                "meetingId": mid,
-                "predictedRating": round(r, 3),
-                "matchPercentage": mp,
-                "matchLevel": "MEDIUM"
-            })
-        return {"success": True, "userId": user_id, "items": items}
+    # 3) 매칭률 계산
+    items = []
+
+    for mid, rating in preds.items():
+        rating = float(rating)
+        meeting = meetings_info.get(mid)
+
+        if not meeting:
+            print(f"⚠️ 모임 {mid} 정보 없음")
+            continue
+
+        # FeatureBuilder로 특징 계산
+        try:
+            features, _ = feature_builder.build_vector(user_info, meeting)
+        except Exception as e:
+            print(f"❌ Feature 계산 실패 (meeting {mid}): {e}")
+            features = {}
+
+        # 기본 점수
+        base_score = rating_to_match_score_sigmoid(rating, mid=3.55, temp=0.45)
+
+        # 보너스 계산
+        bonus = 0
+
+        # 거리
+        distance_km = features.get("distance_km", 10.0)
+        if distance_km <= 1:
+            bonus += 15
+        elif distance_km <= 3:
+            bonus += 10
+        elif distance_km <= 5:
+            bonus += 5
+        elif distance_km <= 10:
+            bonus += 0
+        elif distance_km <= 20:
+            bonus -= 10
+        else:
+            bonus -= 20
+
+        # 관심사
+        interest_match = features.get("interest_match_score", 0.0)
+        bonus += int(interest_match * 20)
+
+        # 비용
+        cost_match = features.get("cost_match_score", 0.5)
+        bonus += int((cost_match - 0.5) * 20)
+
+        # 시간대
+        if features.get("time_match", 0.0) > 0.5:
+            bonus += 5
+
+        # 실내/실외
+        if features.get("location_type_match", 0.0) > 0.5:
+            bonus += 5
+
+        print(f"🎯 모임 {mid}: base={base_score}, bonus={bonus}, distance={distance_km:.2f}km")
+
+        # 최종 점수
+        final_score = base_score + bonus
+        final_score = max(30, min(95, int(final_score)))
+
+        if final_score >= 85:
+            level = "HIGH"
+        elif final_score >= 65:
+            level = "MEDIUM"
+        else:
+            level = "LOW"
+
+        items.append({
+            "meetingId": mid,
+            "predictedRating": round(rating, 3),
+            "matchPercentage": final_score,
+            "matchLevel": level,
+        })
+
+    items.sort(key=lambda x: x["matchPercentage"], reverse=True)
+
+    print(f"📊 최종 결과: {items}")
+
+    return {"success": True, "userId": user_id, "items": items}
+
+# ===== 헬퍼 함수 =====
+async def get_user_info(user_id: int) -> dict:
+    """DB에서 사용자 정보 가져오기 (FeatureBuilder 형식)"""
+    # SELECT users.*, user_preferences.* FROM users
+    # LEFT JOIN user_preferences ON users.id = user_preferences.user_id
+    # WHERE users.id = ?
+
+    # 예시 (실제로는 DB 쿼리):
+    return {
+        "lat": 37.5665,
+        "lng": 126.9780,
+        "time_preference": "EVENING",
+        "user_location_pref": "INDOOR",
+        "interests": "맛집, 카페, 문화예술",
+        "budget_type": "value",
+        "user_avg_rating": 4.2,
+        "user_meeting_count": 15,
+        "user_rating_std": 0.8,
+    }
+
+
+async def get_meetings_info(meeting_ids: list) -> dict:
+    """DB에서 모임 정보 배치 조회 (FeatureBuilder 형식)"""
+    # SELECT id, category, vibe, lat, lng, time_slot,
+    #        meeting_location_type, expected_cost, max_participants,
+    #        meeting_avg_rating, meeting_rating_count, meeting_participant_count
+    # FROM meetings WHERE id IN (...)
+
+    # 예시:
+    return {
+        123: {
+            "category": "맛집",
+            "vibe": "여유로운",
+            "lat": 37.5700,
+            "lng": 126.9800,
+            "time_slot": "EVENING",
+            "meeting_location_type": "INDOOR",
+            "expected_cost": 25000,
+            "max_participants": 10,
+            "meeting_avg_rating": 4.5,
+            "meeting_rating_count": 8,
+            "meeting_participant_count": 6,
+        },
+        124: {
+            "category": "스포츠",
+            "vibe": "활기찬",
+            "lat": 37.6000,
+            "lng": 127.0500,
+            "time_slot": "AFTERNOON",
+            "meeting_location_type": "OUTDOOR",
+            "expected_cost": 15000,
+            "max_participants": 20,
+            "meeting_avg_rating": 4.0,
+            "meeting_rating_count": 3,
+            "meeting_participant_count": 12,
+        }
+    }
+
+
+async def get_user_info_from_db(user_id: int) -> dict:
+    """Spring Boot에서 사용자 정보 가져오기"""
+    try:
+        resp = requests.get(
+            f"http://localhost:8080/api/users/{user_id}/preferences2",
+            timeout=5
+        )
+
+        if resp.status_code != 200:
+            print(f"❌ HTTP {resp.status_code}: {resp.text}")
+            return {}
+
+        data = resp.json()
+
+        return {
+            "lat": data.get("latitude", 37.5665),
+            "lng": data.get("longitude", 126.9780),
+            "time_preference": data.get("timePreference"),
+            "user_location_pref": data.get("locationType"),
+            "interests": data.get("interests", ""),
+            "budget_type": data.get("budgetType", "value"),
+            "user_avg_rating": data.get("avgRating", 3.0),
+            "user_meeting_count": data.get("meetingCount", 0),
+            "user_rating_std": data.get("ratingStd", 0.5),
+        }
+    except Exception as e:
+        print(f"❌ 사용자 정보 조회 실패: {e}")
+        return {
+            "lat": 37.5665,
+            "lng": 126.9780,
+            "time_preference": "EVENING",
+            "user_location_pref": "INDOOR",
+            "interests": "",
+            "budget_type": "value",
+            "user_avg_rating": 3.0,
+            "user_meeting_count": 0,
+            "user_rating_std": 0.5,
+        }
+
+async def get_meetings_info_from_db(meeting_ids: list) -> dict:
+    """Spring Boot에서 모임 정보 배치 조회"""
+    try:
+        resp = requests.post(
+            "http://localhost:8080/api/meetings/batch",
+            json={"meetingIds": meeting_ids},
+            timeout=10
+        )
+
+        if resp.status_code != 200:
+            print(f"❌ HTTP {resp.status_code}: {resp.text}")
+            return {}
+
+        data = resp.json()
+
+        result = {}
+
+        # 응답 형식: {"meetings": [...], "totalCount": N}
+        meetings_list = data.get("meetings", [])
+
+        for m in meetings_list:
+            # ✅ 'id' → 'meeting_id'
+            meeting_id = m.get("meeting_id")
+
+            if not meeting_id:
+                print(f"⚠️ meeting_id 없음: {m.keys()}")
+                continue
+
+            result[meeting_id] = {
+                "category": m.get("category"),
+                "vibe": m.get("vibe"),
+                "lat": m.get("latitude"),
+                "lng": m.get("longitude"),
+                "time_slot": m.get("time_slot"),
+                "meeting_location_type": m.get("location_type"),
+                "expected_cost": m.get("expected_cost", 0),
+                "max_participants": m.get("max_participants", 10),
+                "meeting_avg_rating": m.get("avg_rating", 3.0),
+                "meeting_rating_count": m.get("rating_count", 0),
+                "meeting_participant_count": m.get("current_participants", 0),
+            }
+
+        print(f"✅ 파싱 완료: {len(result)}개 모임")
+        return result
+
+    except Exception as e:
+        print(f"❌ 모임 정보 조회 실패: {e}")
+        import traceback
+        traceback.print_exc()
+        return {}
+
+def calculate_percentile(score: int, all_scores: list) -> int:
+    """현재 점수가 전체 중 상위 몇%인지"""
+    if not all_scores or len(all_scores) < 2:
+        return 50
+
+    sorted_scores = sorted(all_scores)
+    rank = sorted_scores.index(score) if score in sorted_scores else 0
+    percentile = int((rank / len(sorted_scores)) * 100)
+
+    return 100 - percentile  # 상위 %로 변환
+
 
     sorted_vals = sorted(values)
 
@@ -902,3 +1127,4 @@ async def get_match_scores(req: MatchScoresRequest):
     # 높은 순으로 정렬(프론트에서 그대로 쓰기 좋게)
     items.sort(key=lambda x: x["matchPercentage"], reverse=True)
     return {"success": True, "userId": user_id, "items": items}
+

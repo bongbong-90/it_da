@@ -88,6 +88,9 @@ public class MeetingSearchController {
             @Parameter(description = "정렬 방향 (asc/desc)")
             @RequestParam(defaultValue = "desc") String sortDirection
     ) {
+
+        log.info("🔥 HIT GeneralSearchController: /api/meetings/search");
+
         log.info("📍 GET /api/meetings/search - keyword: {}, category: {}, location: {},{}, radius: {}",
                 keyword, category, latitude, longitude, radius);
 

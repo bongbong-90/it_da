@@ -1,5 +1,6 @@
 package com.project.itda.domain.meeting.controller;
 
+import com.project.itda.domain.meeting.dto.request.BatchRequestDto;
 import com.project.itda.domain.meeting.dto.request.MeetingCreateRequest;
 import com.project.itda.domain.meeting.dto.request.MeetingUpdateRequest;
 import com.project.itda.domain.meeting.dto.request.MeetingSearchRequest;
@@ -23,6 +24,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -172,6 +174,41 @@ public class MeetingController {
         String imageUrl = meetingService.uploadMeetingImage(user, meetingId, image);
 
         return ResponseEntity.ok(imageUrl);
+    }
+
+    /**
+     * ✅ 모임 마감 (주최자만)
+     * 모든 APPROVED 참여자를 COMPLETED로 변경
+     */
+    @Operation(
+            summary = "모임 마감",
+            description = "모임을 마감하고 모든 승인된 참여자를 완료 상태로 변경합니다 (주최자만 가능)"
+    )
+    @PostMapping("/{meetingId}/complete")
+    public ResponseEntity<Map<String, Object>> completeMeeting(
+            @AuthenticationPrincipal Long userId,
+            @Parameter(description = "모임 ID", required = true)
+            @PathVariable Long meetingId
+    ) {
+        log.info("📍 POST /api/meetings/{}/complete - userId: {}", meetingId, userId);
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
+
+        int completedCount = participationService.completeMeeting(user, meetingId);
+
+        return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "모임이 마감되었습니다.",
+                "completedParticipants", completedCount
+        ));
+    }
+
+    @PostMapping("/api/meetings/batch")
+    public ResponseEntity<?> getMeetingsBatch(@RequestBody BatchRequestDto req) {
+        List<Long> meetingIds = req.getMeetingIds();
+        Map<String, Object> result = meetingService.getMeetingsByIds(meetingIds);
+        return ResponseEntity.ok(result);
     }
 
 }

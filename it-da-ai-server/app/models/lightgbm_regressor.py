@@ -1,7 +1,27 @@
+"""
+LightGBM Regressor - 만족도 예측 (경고 완전 차단)
+"""
+
 import pickle
 import numpy as np
 from pathlib import Path
 from typing import Optional, Any, List, Dict
+import warnings
+import os
+import sys
+from contextlib import contextmanager
+
+
+@contextmanager
+def suppress_lightgbm_warnings():
+    """LightGBM C++ 레벨 경고를 차단하는 컨텍스트 매니저"""
+    old_stderr = sys.stderr
+    sys.stderr = open(os.devnull, 'w')
+    try:
+        yield
+    finally:
+        sys.stderr.close()
+        sys.stderr = old_stderr
 
 
 class LightGBMRegressorModel:
@@ -13,6 +33,11 @@ class LightGBMRegressorModel:
         self.scaler = None
         self.feature_names: List[str] = []
         self.model_type: str = "unknown"
+
+        # ⭐ LightGBM 경고 완전 억제
+        os.environ['LIGHTGBM_VERBOSITY'] = '-1'
+        warnings.filterwarnings('ignore', category=UserWarning)
+        warnings.filterwarnings('ignore', message='.*num_leaves.*')
 
     def load(self):
         if not self.model_path.exists():
@@ -34,9 +59,13 @@ class LightGBMRegressorModel:
         else:
             raise ValueError(f"지원하지 않는 모델 포맷: {type(obj)}")
 
+        # ⭐ 로드 후 verbose 설정
+        if hasattr(self.model, 'set_params'):
+            self.model.set_params(verbose=-1)
+
         print(f"✅ LightGBM Regressor 로드 완료: {self.model_path} (타입: {self.model_type})")
 
-        # ✅ 여기서 booster 찍기 (정답)
+        # 디버깅용 booster 정보
         try:
             booster = getattr(self.model, "booster_", None)
             if booster:
@@ -64,4 +93,6 @@ class LightGBMRegressorModel:
         if self.scaler is not None:
             X = self.scaler.transform(X)
 
-        return self.model.predict(X)
+        # ⭐ stderr 리다이렉션으로 C++ 레벨 경고 차단
+        with suppress_lightgbm_warnings():
+            return self.model.predict(X)

@@ -1,14 +1,31 @@
 """
-LightGBM Ranker Model Wrapper - Fixed Version
-pickle 파일 구조를 올바르게 처리
+LightGBM Ranker Model Wrapper - 경고 완전 차단
 """
 
 import json
 import pickle
+import os
+import sys
+import warnings
 from pathlib import Path
 from typing import Optional, Any
-
+from contextlib import contextmanager
 import numpy as np
+
+
+@contextmanager
+def suppress_stdout_stderr():
+    """stdout/stderr를 완전히 차단"""
+    with open(os.devnull, 'w') as devnull:
+        old_stdout = sys.stdout
+        old_stderr = sys.stderr
+        sys.stdout = devnull
+        sys.stderr = devnull
+        try:
+            yield
+        finally:
+            sys.stdout = old_stdout
+            sys.stderr = old_stderr
 
 
 class LightGBMRankerModel:
@@ -23,28 +40,30 @@ class LightGBMRankerModel:
         self.model_type: Optional[str] = None
         self.schema_version: Optional[str] = None
 
+        # 환경 변수 설정
+        os.environ['LIGHTGBM_VERBOSITY'] = '-1'
+        warnings.filterwarnings('ignore')
+
     def load(self):
-        """모델 로드 - 다양한 pickle 형식 지원"""
-        # 1) 모델 파일 존재 확인
+        """모델 로드"""
         if not self.model_path.exists():
             raise FileNotFoundError(f"Model not found: {self.model_path}")
 
         print(f"📦 LightGBM Ranker 로딩 중: {self.model_path}")
 
-        # 2) 모델 로드
         with open(self.model_path, "rb") as f:
             loaded = pickle.load(f)
 
-        # ✅ 새 형식 (방금 학습한 모델): {"model": LGBMRanker, "feature_names": [...], ...}
+        # 새 형식
         if isinstance(loaded, dict) and "model" in loaded:
-            self.model = loaded["model"]  # ← 핵심: dict["model"]에서 실제 모델 추출!
+            self.model = loaded["model"]
             self.feature_names = loaded.get("feature_names", [])
             self.schema_version = loaded.get("schema_version")
-            self.scaler = loaded.get("scaler")  # 있으면
+            self.scaler = loaded.get("scaler")
             self.model_type = "dict_model_bundle"
             print(f"  ✅ 새 형식 모델 로드 (schema: {self.schema_version})")
 
-        # ✅ 구 형식: {"ranker": ..., "scaler": ..., "feature_names": ...}
+        # 구 형식
         elif isinstance(loaded, dict) and "ranker" in loaded:
             self.model = loaded["ranker"]
             self.scaler = loaded.get("scaler")
@@ -52,13 +71,17 @@ class LightGBMRankerModel:
             self.model_type = "dict_ranker_bundle"
             print(f"  ✅ 구 형식 모델 로드")
 
-        # ✅ 모델만 저장된 경우
+        # 직접 모델
         else:
             self.model = loaded
             self.model_type = "direct_model"
             print(f"  ✅ 직접 모델 로드")
 
-        # 3) calibration 로드 (있으면)
+        # verbose 설정
+        if hasattr(self.model, 'set_params'):
+            self.model.set_params(verbose=-1)
+
+        # calibration 로드
         if self.calib_path and self.calib_path.exists():
             with open(self.calib_path, "r", encoding="utf-8") as f:
                 self.calibration = json.load(f)
@@ -71,15 +94,18 @@ class LightGBMRankerModel:
         )
 
     def predict(self, X: np.ndarray) -> np.ndarray:
-        """예측 수행"""
+        """예측 수행 - 경고 차단"""
         if self.model is None:
             raise ValueError("Model not loaded. Call load() first.")
 
-        # Scaler 적용 (있으면)
         if self.scaler is not None:
             X = self.scaler.transform(X)
 
-        return self.model.predict(X)
+        # ⭐ stdout 리다이렉션으로 경고 차단
+        with suppress_stdout_stderr():
+            predictions = self.model.predict(X)
+
+        return predictions
 
     def predict_single(self, features: np.ndarray) -> float:
         """단일 샘플 예측"""
@@ -88,11 +114,9 @@ class LightGBMRankerModel:
         return float(self.predict(features)[0])
 
     def is_loaded(self) -> bool:
-        """모델 로드 여부 확인"""
         return self.model is not None
 
     def get_info(self) -> dict:
-        """모델 정보 반환"""
         return {
             "loaded": self.is_loaded(),
             "model_type": self.model_type,

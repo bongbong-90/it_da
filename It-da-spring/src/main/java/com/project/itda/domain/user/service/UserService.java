@@ -22,7 +22,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -196,5 +198,61 @@ public class UserService {
                 .userMeetingCount(user.getMeetingCount() != null ? user.getMeetingCount() : 0)
                 .userRatingStd(ratingStd != null ? ratingStd : 0.0)
                 .build();
+    }
+
+    /**
+     * 사용자 선호도 정보 조회 (AI 서버용)
+     */
+    public Map<String, Object> getUserPreferences(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found: " + userId));
+
+        UserPreference pref = userPreferenceRepository.findByUserId(userId)
+                .orElse(null);
+
+        Map<String, Object> result = new HashMap<>();
+
+        // 기본 위치 정보
+        result.put("latitude", user.getLatitude() != null ? user.getLatitude() : 37.5665);
+        result.put("longitude", user.getLongitude() != null ? user.getLongitude() : 126.9780);
+
+        if (pref != null) {
+            result.put("timePreference", pref.getTimePreference()); // MORNING, AFTERNOON, EVENING, NIGHT
+            result.put("locationType", pref.getLocationType()); // INDOOR, OUTDOOR
+            result.put("interests", pref.getInterests()); // "맛집, 카페, 문화예술"
+            result.put("budgetType", pref.getBudgetType()); // low, value, medium, high, premium
+        } else {
+            // 기본값
+            result.put("timePreference", "EVENING");
+            result.put("locationType", "INDOOR");
+            result.put("interests", "");
+            result.put("budgetType", "value");
+        }
+
+        // 사용자 통계 (평균 평점, 참여 횟수, 평점 표준편차)
+        result.put("avgRating", calculateUserAvgRating(userId));
+        result.put("meetingCount", getUserMeetingCount(userId));
+        result.put("ratingStd", calculateUserRatingStd(userId));
+
+        return result;
+    }
+
+    // ===== 헬퍼 메서드 (실제 로직에 맞게 수정) =====
+
+    private Double calculateUserAvgRating(Long userId) {
+        // TODO: 사용자가 준 평점들의 평균
+        // 예: reviewRepository.getAvgRatingByUserId(userId);
+        return 4.2; // 임시
+    }
+
+    private Integer getUserMeetingCount(Long userId) {
+        // TODO: 사용자가 참여한 모임 수
+        // 예: participationRepository.countByUserId(userId);
+        return 10; // 임시
+    }
+
+    private Double calculateUserRatingStd(Long userId) {
+        // TODO: 사용자가 준 평점들의 표준편차
+        return 0.8; // 임시
     }
 }

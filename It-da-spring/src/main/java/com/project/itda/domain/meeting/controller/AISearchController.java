@@ -39,6 +39,8 @@ public class AISearchController {
         log.info("🤖 AI 검색 요청: category={}, subcategory={}, timeSlot={}",
                 request.getCategory(), request.getSubcategory(), request.getTimeSlot());
 
+        log.info("🔥 HIT AISearchController: /api/meetings/search");
+
         log.info("🤖 userLocation={}", request.getUserLocation());
         if (request.getUserLocation() != null) {
             log.info("🤖 user lat={}, lng={}", request.getUserLocation().getLatitude(), request.getUserLocation().getLongitude());

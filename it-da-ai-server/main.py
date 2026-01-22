@@ -3,8 +3,25 @@ ITDA AI Server - FastAPI Main
 """
 from dotenv import load_dotenv
 import os
+import warnings
+import logging
 
-# ✅ 가장 먼저 .env 로드
+# ========================================
+# ⭐ 모든 경고 완전 차단
+# ========================================
+os.environ['LIGHTGBM_VERBOSITY'] = '-1'
+os.environ['PYTHONWARNINGS'] = 'ignore'
+
+# 모든 경고 필터
+warnings.filterwarnings('ignore')
+warnings.filterwarnings('ignore', category=UserWarning)
+warnings.filterwarnings('ignore', category=FutureWarning)
+warnings.filterwarnings('ignore', message='.*num_leaves.*')
+
+# LightGBM 로거 비활성화
+logging.getLogger('lightgbm').setLevel(logging.ERROR)
+
+# ✅ .env 로드
 load_dotenv()
 
 # 환경변수 확인
@@ -20,7 +37,6 @@ from app.api.recommendations import router as recommendations_router
 from app.models.model_loader import model_loader
 from app.core.logging import logger
 
-
 # ========================================
 # Lifespan Event Handler
 # ========================================
@@ -28,7 +44,6 @@ from app.core.logging import logger
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """서버 시작/종료 이벤트 핸들러"""
-    # Startup
     logger.info("🚀 ITDA AI Server 시작")
 
     try:
@@ -38,13 +53,11 @@ async def lifespan(app: FastAPI):
         logger.error(f"❌ 모델 로딩 실패: {e}")
         raise
 
-    yield  # 서버 실행 중
+    yield
 
-    # Shutdown
     logger.info("👋 ITDA AI Server 종료")
 
 
-# FastAPI 앱 생성
 app = FastAPI(
     title="ITDA AI Server",
     description="모임 추천 AI 서버 (SVD, LightGBM Ranker, KcELECTRA)",
@@ -53,37 +66,33 @@ app = FastAPI(
 )
 
 # ========================================
-# ✅ CORS 설정 (매우 중요!)
+# CORS 설정
 # ========================================
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:3000",      # React 개발 서버
-        "http://localhost:5173",      # Vite 개발 서버
-        "http://localhost:8080",      # Spring Boot
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://localhost:8080",
         "http://127.0.0.1:3000",
         "http://127.0.0.1:5173",
         "http://127.0.0.1:8080",
     ],
     allow_credentials=True,
-    allow_methods=["*"],              # 모든 HTTP 메서드 허용
-    allow_headers=["*"],              # 모든 헤더 허용
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # ========================================
-# ✅ 라우터 등록 - prefix 추가
+# 라우터 등록
 # ========================================
 
-# Spring Boot가 호출하는 엔드포인트
 app.include_router(ai_router)
-
-# React가 직접 호출하는 엔드포인트
 app.include_router(recommendations_router)
 
 @app.get("/")
 async def root():
-    """헬스 체크"""
     return {
         "status": "ok",
         "message": "ITDA AI Server is running",
@@ -93,15 +102,10 @@ async def root():
 
 @app.get("/api/ai/recommendations/health")
 async def health_check():
-    """AI 추천 시스템 헬스 체크"""
     return {
         "status": "healthy",
         "models": model_loader.get_status()
     }
-
-# ========================================
-# 서버 실행
-# ========================================
 
 if __name__ == "__main__":
     import uvicorn

@@ -9,6 +9,7 @@ import com.project.itda.domain.meeting.enums.MeetingStatus;
 import com.project.itda.domain.meeting.repository.MeetingRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Bean;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,6 +29,10 @@ public class AISearchService {
     // ✅ 핵심: 어떤 필터든 이 개수 미만이면 "필터 스킵"
     private static final int MIN_CANDIDATES = 30; // 데이터 적으면 10~20으로 낮춰도 됨
 
+    private static final int MIN_CATEGORY_CANDIDATES = 5;
+
+    // AISearchService.java 수정
+
     public AISearchResponse searchForAI(AISearchRequest request) {
         log.info("🤖 AI 검색: category={}, subcategory={}, timeSlot={}, locationQuery={}, locationType={}, maxCost={}, keywords={}",
                 request.getCategory(), request.getSubcategory(), request.getTimeSlot(),
@@ -41,35 +46,74 @@ public class AISearchService {
 
         List<Meeting> meetings = base;
 
-        // 1) category (소프트)
-        if (hasText(request.getCategory())) {
-            String cat = request.getCategory().trim();
-            meetings = applySoftFilter(
-                    meetings,
-                    m -> m.getCategory() != null && m.getCategory().trim().equalsIgnoreCase(cat),
-                    "category=" + cat
-            );
-        }
-
-        // 2) subcategory (소프트)
-        if (hasText(request.getSubcategory())) {
-            String sub = request.getSubcategory().trim();
-            meetings = applySoftFilter(
-                    meetings,
-                    m -> m.getSubcategory() != null && m.getSubcategory().trim().equalsIgnoreCase(sub),
-                    "subcategory=" + sub
-            );
-        }
-
-        // 3) locationType (소프트)  ※ DTO에 string일 수도 enum일 수도 있어서 safe하게 비교
+        // ✅ 1) locationType 필터를 최우선 하드 필터로 이동
         if (hasText(request.getLocationType())) {
             String lt = request.getLocationType().trim().toUpperCase();
-            meetings = applySoftFilter(
-                    meetings,
-                    m -> m.getLocationType() != null && m.getLocationType().name().equalsIgnoreCase(lt),
-                    "locationType=" + lt
-            );
+
+            meetings = meetings.stream()
+                    .filter(m -> m.getLocationType() != null &&
+                            m.getLocationType().name().equalsIgnoreCase(lt))
+                    .toList();
+
+            log.info("✅ [locationType={}] 하드 필터: {} -> {}",
+                    lt, base.size(), meetings.size());
+
+            if (meetings.isEmpty()) {
+                log.warn("⚠️ locationType={} 결과 0개", lt);
+                return AISearchResponse.builder()
+                        .meetings(List.of())
+                        .totalCount(0)
+                        .build();
+            }
         }
+
+        // category
+        if (hasText(request.getCategory())) {
+            String cat = request.getCategory().trim();
+
+            List<Meeting> filtered = meetings.stream()
+                    .filter(m -> m.getCategory() != null && m.getCategory().trim().equalsIgnoreCase(cat))
+                    .toList();
+
+            if (filtered.isEmpty()) {
+                log.info("⚠️ [category={}] 결과 0개 → (AI용) 빈 결과 반환", cat);
+                return AISearchResponse.builder()
+                        .meetings(List.of())
+                        .totalCount(0)
+                        .build();
+            }
+
+            meetings = filtered;
+        }
+
+        // 3) subcategory (✅ 세미-하드: 결과가 있으면 적용)
+        if (hasText(request.getSubcategory())) {
+            String sub = request.getSubcategory().trim();
+            List<Meeting> filtered = meetings.stream()
+                    .filter(m -> m.getSubcategory() != null && m.getSubcategory().trim().equalsIgnoreCase(sub))
+                    .toList();
+
+            if (!filtered.isEmpty()) {
+                log.info("✅ [subcategory={}] 적용: {} -> {}", sub, meetings.size(), filtered.size());
+                meetings = filtered;
+            } else {
+                log.info("⚠️ [subcategory={}] 결과 0개 → 스킵", sub);
+            }
+        }
+
+        log.info("🧪 [REQ] category='{}', subcategory='{}', locationType='{}'",
+                request.getCategory(), request.getSubcategory(), request.getLocationType());
+
+        log.info("🧪 [CAND_BEFORE_SUB] size={}, subcats={}",
+                meetings.size(),
+                meetings.stream().map(Meeting::getSubcategory).filter(Objects::nonNull)
+                        .map(String::trim).distinct().limit(20).toList());
+
+        /* subcategory 필터 적용 후 */
+        log.info("🧪 [CAND_AFTER_SUB] size={}, subcats={}",
+                meetings.size(),
+                meetings.stream().map(Meeting::getSubcategory).filter(Objects::nonNull)
+                        .map(String::trim).distinct().limit(20).toList());
 
         // 4) timeSlot (소프트)
         if (hasText(request.getTimeSlot())) {
@@ -98,7 +142,7 @@ public class AISearchService {
             );
         }
 
-        // 6) locationQuery 텍스트 필터 (소프트) - nearMe phrase면 텍스트 필터 스킵
+        // 6) locationQuery 텍스트 필터 (소프트)
         if (hasText(request.getLocationQuery()) && !isNearMePhrase(request.getLocationQuery())) {
             String q = request.getLocationQuery().trim().toLowerCase();
             meetings = applySoftFilter(
@@ -168,20 +212,30 @@ public class AISearchService {
     // ✅ 핵심 유틸: "필터 적용" vs "스킵"
     // =========================
     private List<Meeting> applySoftFilter(List<Meeting> current, Predicate<Meeting> predicate, String label) {
+        return applySoftFilter(current, predicate, label, MIN_CANDIDATES);
+    }
+
+    private List<Meeting> applySoftFilter(
+            List<Meeting> current,
+            Predicate<Meeting> predicate,
+            String label,
+            int minCandidates
+    ) {
         if (current == null || current.isEmpty()) return current;
 
         List<Meeting> filtered = current.stream().filter(predicate).toList();
 
-        // 0개면 스킵 (원본 유지)
         if (filtered.isEmpty()) {
-            log.info("⚠️ [{}] 결과 0개 → 필터 스킵 (원본 {} 유지)", label, current.size());
+            log.info("⚠️ [{}] 결과 0개 → 스킵 (원본 {} 유지)", label, current.size());
             return current;
         }
 
-        // ✅ 너무 줄어들면 스킵 (최소 후보수 보장)
-        if (filtered.size() < Math.min(MIN_CANDIDATES, current.size())) {
-            log.info("⚠️ [{}] 결과 {}개(<{}) → 필터 스킵 (원본 {} 유지)",
-                    label, filtered.size(), Math.min(MIN_CANDIDATES, current.size()), current.size());
+        // ✅ 동적 기준: 현재 후보가 20개면 8개 이상만 되어도 적용 같은 방식
+        int dynamicMin = Math.min(minCandidates, Math.max(5, (int)Math.ceil(current.size() * 0.4)));
+
+        if (filtered.size() < dynamicMin) {
+            log.info("⚠️ [{}] 결과 {}개(<{}) → 스킵 (원본 {} 유지)",
+                    label, filtered.size(), dynamicMin, current.size());
             return current;
         }
 

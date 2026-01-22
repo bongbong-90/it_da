@@ -13,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @RestController
@@ -57,6 +58,16 @@ public class UserController {
         log.info("사용자 삭제 요청: userId={}", userId);
         userService.deleteUser(userId);
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/{userId}/preferences2")
+    public ResponseEntity<?> getUserPreferences(@PathVariable Long userId) {
+        try {
+            Map<String, Object> preferences = userService.getUserPreferences(userId);
+            return ResponseEntity.ok(preferences);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", e.getMessage()));
+        }
     }
 
 }

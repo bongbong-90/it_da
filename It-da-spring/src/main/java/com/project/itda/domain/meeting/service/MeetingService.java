@@ -26,7 +26,9 @@ import java.nio.file.Paths;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -372,4 +374,63 @@ public class MeetingService {
         }
     }
 
+    /**
+     * 여러 모임 ID로 배치 조회
+     */
+    public Map<String, Object> getMeetingsByIds(List<Long> meetingIds) {
+        if (meetingIds == null || meetingIds.isEmpty()) {
+            return Map.of("meetings", List.of());
+        }
+
+        List<Meeting> meetings = meetingRepository.findAllById(meetingIds);
+
+        List<Map<String, Object>> meetingList = meetings.stream()
+                .map(this::convertToMap)
+                .collect(Collectors.toList());
+
+        return Map.of("meetings", meetingList);
+    }
+
+    /**
+     * Meeting 엔티티 → Map 변환 (AI 서버용)
+     */
+    private Map<String, Object> convertToMap(Meeting meeting) {
+        Map<String, Object> map = new HashMap<>();
+
+        map.put("id", meeting.getMeetingId());
+        map.put("category", meeting.getCategory());
+        map.put("vibe", meeting.getVibe());
+        map.put("latitude", meeting.getLatitude());
+        map.put("longitude", meeting.getLongitude());
+        map.put("timeSlot", meeting.getTimeSlot());
+        map.put("locationType", meeting.getLocationType());
+        map.put("expectedCost", meeting.getExpectedCost());
+        map.put("maxParticipants", meeting.getMaxParticipants());
+
+        // 평균 평점, 평점 개수, 참여자 수 (계산 필요시)
+        map.put("avgRating", calculateAvgRating(meeting));
+        map.put("ratingCount", getRatingCount(meeting));
+        map.put("participantCount", getParticipantCount(meeting));
+
+        return map;
+    }
+
+    // ===== 헬퍼 메서드 (실제 로직에 맞게 수정) =====
+
+    private Double calculateAvgRating(Meeting meeting) {
+        // TODO: 실제 평점 계산 로직
+        // 예: reviewRepository.getAvgRating(meeting.getId());
+        return 4.0; // 임시
+    }
+
+    private Integer getRatingCount(Meeting meeting) {
+        // TODO: 실제 평점 개수 조회
+        return 5; // 임시
+    }
+
+    private Integer getParticipantCount(Meeting meeting) {
+        // TODO: 실제 참여자 수 조회
+        // 예: participationRepository.countByMeetingId(meeting.getId());
+        return meeting.getCurrentParticipants(); // 또는 다른 필드
+    }
 }
