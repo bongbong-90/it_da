@@ -38,12 +38,11 @@ public class ReviewService {
     private final MeetingRepository meetingRepository;
     private final SentimentAnalysisService sentimentAnalysisService;
 
-
     /**
      * 사용자 리뷰 목록 조회 (AI SVD용)
      */
     public List<UserReviewDTO> getUserReviews(Long userId) {
-        log.info("📝 사용자 리뷰 조회: userId={}", userId);
+        log.info("🔍 사용자 리뷰 조회: userId={}", userId);
 
         List<Review> reviews = reviewRepository.findByUserId(userId);
 
@@ -173,9 +172,7 @@ public class ReviewService {
         review.update(request.getRating(), request.getReviewText(), request.getIsPublic());
 
         // 6. 평점 변경 시 모임 평균 평점 업데이트
-        if (!review.getRating().equals(request.getRating())) {
-            updateMeetingAvgRating(review.getMeeting().getMeetingId());
-        }
+        updateMeetingAvgRating(review.getMeeting().getMeetingId());
 
         log.info("✅ 후기 수정 완료 - reviewId: {}", reviewId);
 
@@ -205,11 +202,25 @@ public class ReviewService {
     }
 
     /**
+     * ✅ 모임의 후기 목록 조회 (모달용 - List<ReviewResponse> 반환)
+     */
+    @Transactional(readOnly = true)
+    public List<ReviewResponse> getReviewListByMeetingId(Long meetingId) {
+        log.info("📋 모임 후기 목록 조회 - meetingId: {}", meetingId);
+
+        List<Review> reviews = reviewRepository.findByMeetingIdAndIsPublicTrue(meetingId);
+
+        return reviews.stream()
+                .map(review -> toReviewResponse(review, null))
+                .collect(Collectors.toList());
+    }
+
+    /**
      * 모임의 후기 목록 조회 (감성 통계 포함)
      */
     @Transactional(readOnly = true)
     public ReviewListResponse getReviewsByMeetingId(Long meetingId) {
-        log.info("📋 모임 후기 목록 조회 - meetingId: {}", meetingId);
+        log.info("📊 모임 후기 통계 조회 - meetingId: {}", meetingId);
 
         List<Review> reviews = reviewRepository.findByMeetingIdAndIsPublicTrue(meetingId);
 
@@ -276,7 +287,7 @@ public class ReviewService {
     }
 
     /**
-     * Review 엔티티 → ReviewResponse 변환
+     * ✅ Review 엔티티 → ReviewResponse 변환 (프론트엔드 필드명에 맞춤)
      */
     private ReviewResponse toReviewResponse(Review review, SentimentAnalysisDTO sentimentResult) {
         String sentimentIcon = null;
@@ -306,10 +317,14 @@ public class ReviewService {
                 .reviewId(review.getReviewId())
                 .userId(review.getUser().getUserId())
                 .username(review.getUser().getUsername())
-                .userProfileImage(review.getUser().getProfileImageUrl())
+                // ✅ 프론트엔드와 일치: profileImageUrl
+                .profileImageUrl(review.getUser().getProfileImageUrl())
                 .meetingId(review.getMeeting().getMeetingId())
+                // ✅ 추가: meetingTitle
+                .meetingTitle(review.getMeeting().getTitle())
                 .rating(review.getRating())
-                .reviewText(review.getReviewText())
+                // ✅ 프론트엔드와 일치: content (reviewText → content)
+                .content(review.getReviewText())
                 .sentiment(review.getSentiment() != null ? review.getSentiment().name() : null)
                 .sentimentScore(review.getSentimentScore())
                 .sentimentIcon(sentimentIcon)

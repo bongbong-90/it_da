@@ -6,7 +6,11 @@ import com.project.itda.domain.notification.entity.Notification;
 import com.project.itda.domain.notification.enums.NotificationType;
 import com.project.itda.domain.notification.repository.NotificationRepository;
 import com.project.itda.domain.user.entity.User;
+import com.project.itda.domain.user.entity.UserFollow;
+import com.project.itda.domain.user.entity.UserSetting;
+import com.project.itda.domain.user.repository.UserFollowRepository;
 import com.project.itda.domain.user.repository.UserRepository;
+import com.project.itda.domain.user.repository.UserSettingRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -28,6 +32,8 @@ public class NotificationService {
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
     private final PushNotificationService pushNotificationService;
+    private final UserFollowRepository userFollowRepository;      // ✅ 추가
+    private final UserSettingRepository userSettingRepository;    // ✅ 추가
 
     // ========================================
     // 알림 조회 API
@@ -282,8 +288,8 @@ public class NotificationService {
         createNotification(
                 meetingHost,
                 NotificationType.MEETING_JOIN,
-                participant.getUsername() + "님이 모임에 참가했습니다",
-                "📅 " + meetingTitle + " 모임에 새로운 멤버가 참가했습니다.",
+                participant.getUsername() + "님이 모임에 참가 신청했습니다",
+                "📅 " + meetingTitle + " 모임에 새로운 참가 신청이 있습니다.",
                 "/meeting/" + meetingId,
                 meetingId,
                 participant.getUserId(),
@@ -293,10 +299,17 @@ public class NotificationService {
     }
 
     /**
-     * 팔로우한 사람이 모임에 참가했을 때 알림
+     * ✅ 팔로우한 사람이 모임에 참가했을 때 알림 (설정 체크 포함)
      */
     @Transactional
     public void notifyFollowerMeetingJoin(User receiver, User followedUser, Long meetingId, String meetingTitle) {
+        // ✅ UserSetting에서 followMeetingNotification 설정 확인
+        UserSetting setting = userSettingRepository.findByUser_UserId(receiver.getUserId()).orElse(null);
+        if (setting != null && Boolean.FALSE.equals(setting.getFollowMeetingNotification())) {
+            log.info("⏭️ 팔로우 모임 참가 알림 스킵 (설정 OFF): receiverId={}", receiver.getUserId());
+            return;
+        }
+
         createNotification(
                 receiver,
                 NotificationType.MEETING_FOLLOW,
@@ -386,6 +399,51 @@ public class NotificationService {
                 null,
                 null
         );
+    }
+
+    /**
+     * ✅ 팔로우한 사람이 후기를 작성했을 때 알림 (설정 체크 포함)
+     * - 내가 팔로우한 사람이 후기를 작성하면, 나에게 알림!
+     */
+    @Transactional
+    public void notifyFollowersAboutReview(User reviewWriter, Long reviewId, Long meetingId, String meetingTitle) {
+        log.info("📝 팔로우 후기 작성 알림 시작: writerId={}, meetingTitle={}", reviewWriter.getUserId(), meetingTitle);
+
+        // 이 사람(reviewWriter)을 팔로우하는 모든 사람 조회
+        List<UserFollow> followers = userFollowRepository.findByFollowing(reviewWriter);
+
+        int sentCount = 0;
+        for (UserFollow follow : followers) {
+            User follower = follow.getFollower();
+
+            // 본인 제외
+            if (follower.getUserId().equals(reviewWriter.getUserId())) {
+                continue;
+            }
+
+            // ✅ UserSetting에서 followReviewNotification 설정 확인
+            UserSetting setting = userSettingRepository.findByUser_UserId(follower.getUserId()).orElse(null);
+            if (setting != null && Boolean.FALSE.equals(setting.getFollowReviewNotification())) {
+                log.info("⏭️ 팔로우 후기 알림 스킵 (설정 OFF): followerId={}", follower.getUserId());
+                continue;
+            }
+
+            // 알림 생성
+            createNotification(
+                    follower,
+                    NotificationType.REVIEW,  // 또는 REVIEW_FOLLOW 타입 추가 가능
+                    reviewWriter.getUsername() + "님이 후기를 작성했습니다",
+                    "⭐ '" + meetingTitle + "' 모임에 대한 후기를 남겼습니다.",
+                    "/meeting/" + meetingId,
+                    reviewId,
+                    reviewWriter.getUserId(),
+                    reviewWriter.getUsername(),
+                    reviewWriter.getProfileImageUrl()
+            );
+            sentCount++;
+        }
+
+        log.info("🔔 팔로우 후기 알림 전송 완료: {}명에게 전송", sentCount);
     }
 
     // ========================================

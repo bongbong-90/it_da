@@ -22,6 +22,9 @@ import ArchiveTab from "./components/ArchiveTab";
 import StatsTab from "./components/StatsTab";
 import SettingsTab from "./components/SettingsTab";
 import ProfileEditModal from "./components/ProfileEditModal";
+// ✅ 새로 추가한 모달들
+import MeetingReviewsModal from "./components/MeetingReviewsModal";
+import MyReviewsModal from "./components/MyReviewsModal";
 import {
   useProfileWebSocket,
   ProfileUpdate,
@@ -56,7 +59,8 @@ const MyPage: React.FC = () => {
   const [isFollowModalOpen, setIsFollowModalOpen] = useState(false);
   const [followModalTitle, setFollowModalTitle] = useState("");
   const [followUsers, setFollowUsers] = useState<FollowUser[]>([]);
-  const [isFollowing, setIsFollowing] = useState(false);
+  // ✅ FIX: isFollowing 사용하지 않으므로 setter만 유지하거나 제거
+  const [isFollowing] = useState(false);
   const [isProfileEditOpen, setIsProfileEditOpen] = useState(false);
   const [followingCount, setFollowingCount] = useState(0);
   const [followerCount, setFollowerCount] = useState(0);
@@ -64,9 +68,20 @@ const MyPage: React.FC = () => {
   // ✅ 참여 모임 카운트 상태 추가
   const [participationCount, setParticipationCount] = useState(0);
 
+  // ✅ 평균 평점 상태 추가 (웹소켓용)
+  const [averageRating, setAverageRating] = useState(0);
+
   const [notifyFollowMeeting, setNotifyFollowMeeting] = useState(true);
   const [notifyFollowReview, setNotifyFollowReview] = useState(true);
   const [isPublic, setIsPublic] = useState(true);
+
+  // ✅ 모임 리뷰 모달 상태
+  const [isMeetingReviewsOpen, setIsMeetingReviewsOpen] = useState(false);
+  const [reviewMeetingId, setReviewMeetingId] = useState<number | null>(null);
+  const [reviewMeetingTitle, setReviewMeetingTitle] = useState("");
+
+  // ✅ 내가 쓴 후기 모달 상태
+  const [isMyReviewsModalOpen, setIsMyReviewsModalOpen] = useState(false);
 
   const badges = [
     {
@@ -107,13 +122,18 @@ const MyPage: React.FC = () => {
       participationCount > 0
         ? participationCount
         : completedMeetings.length + upcomingMeetings.length;
+
+    // ✅ 평균 평점: 웹소켓 업데이트 또는 계산값
     const avgRating =
-      myReviews.length > 0
-        ? (
-            myReviews.reduce((sum, r) => sum + (r.rating || 0), 0) /
-            myReviews.length
-          ).toFixed(1)
-        : "0.0";
+      averageRating > 0
+        ? averageRating.toFixed(1)
+        : myReviews.length > 0
+          ? (
+              myReviews.reduce((sum, r) => sum + (r.rating || 0), 0) /
+              myReviews.length
+            ).toFixed(1)
+          : "0.0";
+
     return [
       { icon: "📅", value: totalMeetings, label: "총 참여 모임" },
       { icon: "⭐", value: avgRating, label: "평균 평점" },
@@ -123,6 +143,7 @@ const MyPage: React.FC = () => {
     upcomingMeetings.length,
     myReviews,
     participationCount,
+    averageRating,
   ]);
 
   // ✅ fetchAll을 먼저 선언!
@@ -145,8 +166,19 @@ const MyPage: React.FC = () => {
 
       // ✅ 초기 참여 모임 카운트 설정
       setParticipationCount(upcoming.length + completed.length);
-    } catch (e) {
-      console.error(e);
+
+      // ✅ 초기 평균 평점 계산
+      if (reviews.length > 0) {
+        const avg =
+          reviews.reduce(
+            (sum: number, r: MyReview) => sum + (r.rating || 0),
+            0,
+          ) / reviews.length;
+        setAverageRating(avg);
+      }
+    } catch (err) {
+      // ✅ FIX: 'e' -> 'err' 사용
+      console.error("마이페이지 정보 로드 실패:", err);
       setError("마이페이지 정보를 불러오지 못했습니다.");
     } finally {
       setLoading(false);
@@ -171,6 +203,11 @@ const MyPage: React.FC = () => {
           console.log("✅ 참여 모임 카운트 업데이트:", update.value);
           setParticipationCount(update.value as number);
         }
+        // ✅ 평균 평점 업데이트
+        if (update.field === "averageRating" && update.value !== undefined) {
+          console.log("✅ 평균 평점 업데이트:", update.value);
+          setAverageRating(update.value as number);
+        }
       }
 
       // 팔로잉 카운트 업데이트
@@ -181,7 +218,13 @@ const MyPage: React.FC = () => {
       // ✅ 모임 완료 시 자동 새로고침!
       if (update.type === "MEETING_COMPLETED") {
         console.log("🏁 모임 완료 알림 수신! 목록 새로고침...");
-        fetchAll(); // 예정/완료 모임 목록 새로고침
+        void fetchAll(); // ✅ FIX: Promise 무시 명시
+      }
+
+      // ✅ 리뷰 작성 시 평균 평점 새로고침
+      if (update.type === "REVIEW_CREATED") {
+        console.log("📝 리뷰 작성됨! 평균 평점 새로고침...");
+        void fetchAll(); // ✅ FIX: Promise 무시 명시
       }
 
       // 내 프로필 정보 업데이트
@@ -229,8 +272,9 @@ const MyPage: React.FC = () => {
       ]);
       setFollowingCount(following);
       setFollowerCount(followers);
-    } catch (e) {
-      console.error("팔로우 수 조회 실패:", e);
+    } catch (err) {
+      // ✅ FIX: 'e' -> 'err' 사용
+      console.error("팔로우 수 조회 실패:", err);
     }
   }, [currentUserId]);
 
@@ -239,10 +283,11 @@ const MyPage: React.FC = () => {
 
     try {
       const settings = await userSettingApi.getSetting(currentUserId);
-      setNotifyFollowMeeting(settings.followMeetingNotification);
-      setNotifyFollowReview(settings.followReviewNotification);
-    } catch (e) {
-      console.error("설정 조회 실패:", e);
+      setNotifyFollowMeeting(settings.followMeetingNotification ?? true);
+      setNotifyFollowReview(settings.followReviewNotification ?? true);
+    } catch (err) {
+      // ✅ FIX: 'e' -> 'err' 사용
+      console.error("설정 조회 실패:", err);
     }
   }, [currentUserId]);
 
@@ -252,17 +297,18 @@ const MyPage: React.FC = () => {
     try {
       const response = await apiClient.get(`/api/users/${currentUserId}`);
       setIsPublic(response.data.isPublic ?? true);
-    } catch (e) {
-      console.error(e);
+    } catch (err) {
+      // ✅ FIX: 'e' -> 'err' 사용
+      console.error("유저 프로필 조회 실패:", err);
     }
   }, [currentUserId]);
 
   useEffect(() => {
     if (currentUserId) {
-      fetchAll();
-      fetchFollowCounts();
-      fetchSettings();
-      fetchUserProfile();
+      void fetchAll(); // ✅ FIX: Promise 무시 명시
+      void fetchFollowCounts(); // ✅ FIX: Promise 무시 명시
+      void fetchSettings(); // ✅ FIX: Promise 무시 명시
+      void fetchUserProfile(); // ✅ FIX: Promise 무시 명시
     }
   }, [
     currentUserId,
@@ -292,8 +338,9 @@ const MyPage: React.FC = () => {
           ? await followApi.getFollowing(currentUserId, currentUserId)
           : await followApi.getFollowers(currentUserId, currentUserId);
       setFollowUsers(users);
-    } catch (e) {
-      console.error("목록 조회 에러:", e);
+    } catch (err) {
+      // ✅ FIX: 'e' -> 'err' 사용
+      console.error("목록 조회 에러:", err);
       setFollowUsers([]);
     } finally {
       setFollowLoading(false);
@@ -321,21 +368,23 @@ const MyPage: React.FC = () => {
           u.userId === targetUserId ? { ...u, isFollowing: !u.isFollowing } : u,
         ),
       );
-    } catch (e: any) {
-      console.error("팔로우 처리 에러:", e);
-      if (e.message?.includes("이미 팔로우")) {
+    } catch (err: unknown) {
+      // ✅ FIX: 'e: any' -> 'err: unknown' + 타입 체크
+      console.error("팔로우 처리 에러:", err);
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      if (errorMessage.includes("이미 팔로우")) {
         setFollowUsers((prev) =>
           prev.map((u) =>
             u.userId === targetUserId ? { ...u, isFollowing: true } : u,
           ),
         );
       } else {
-        alert(e.message || "팔로우 처리에 실패했습니다.");
+        alert(errorMessage || "팔로우 처리에 실패했습니다.");
       }
     }
   };
 
-  const handleUserClick = async (userId: number) => {
+  const handleUserClick = (userId: number) => {
     setIsFollowModalOpen(false);
 
     if (userId === currentUserId) {
@@ -360,7 +409,8 @@ const MyPage: React.FC = () => {
         followMeetingNotification: !notifyFollowMeeting,
       });
       setNotifyFollowMeeting(!notifyFollowMeeting);
-    } catch (e) {
+    } catch {
+      // ✅ FIX: 사용 안 하는 'e' 제거
       alert("설정 저장에 실패했습니다.");
     }
   };
@@ -373,7 +423,8 @@ const MyPage: React.FC = () => {
         followReviewNotification: !notifyFollowReview,
       });
       setNotifyFollowReview(!notifyFollowReview);
-    } catch (e) {
+    } catch {
+      // ✅ FIX: 사용 안 하는 'e' 제거
       alert("설정 저장에 실패했습니다.");
     }
   };
@@ -386,7 +437,8 @@ const MyPage: React.FC = () => {
         isPublic: !isPublic,
       });
       setIsPublic(!isPublic);
-    } catch (e) {
+    } catch {
+      // ✅ FIX: 사용 안 하는 'e' 제거
       alert("설정 변경 실패");
     }
   };
@@ -405,7 +457,8 @@ const MyPage: React.FC = () => {
           localStorage.clear();
           alert("계정이 삭제되었습니다.");
           window.location.href = "/";
-        } catch (e) {
+        } catch {
+          // ✅ FIX: 사용 안 하는 'e' 제거
           alert("계정 삭제 실패");
         }
       }
@@ -428,13 +481,31 @@ const MyPage: React.FC = () => {
     window.location.reload();
   };
 
+  // ✅ 모임 리뷰 보기 핸들러
+  const handleOpenMeetingReviews = (
+    meetingId: number,
+    meetingTitle: string,
+  ) => {
+    setReviewMeetingId(meetingId);
+    setReviewMeetingTitle(meetingTitle);
+    setIsMeetingReviewsOpen(true);
+  };
+
+  // ✅ 내가 쓴 후기 모달 열기 핸들러
+  const handleOpenMyReviews = () => {
+    setIsMyReviewsModalOpen(true);
+  };
+
   // ✅ 프로필 정보 (참여 모임 카운트 사용)
   const profile = useMemo(() => {
+    // 평균 평점: 웹소켓 업데이트 또는 계산
     const average =
-      myReviews.length > 0
-        ? myReviews.reduce((sum, r) => sum + (r.rating || 0), 0) /
-          myReviews.length
-        : 0;
+      averageRating > 0
+        ? averageRating
+        : myReviews.length > 0
+          ? myReviews.reduce((sum, r) => sum + (r.rating || 0), 0) /
+            myReviews.length
+          : 0;
 
     // 참여 모임 카운트: WebSocket 업데이트 또는 API 데이터
     const meetingCount =
@@ -467,6 +538,7 @@ const MyPage: React.FC = () => {
     followingCount,
     followerCount,
     participationCount,
+    averageRating,
   ]);
 
   if (!currentUserId) {
@@ -602,19 +674,21 @@ const MyPage: React.FC = () => {
               <>
                 <PendingReviews
                   data={pendingReviews}
-                  onWriteReview={(id, title, date) => {
+                  onWriteReview={(id: number, title: string, date: string) => {
                     setModalMeetingId(id);
                     setModalMeetingTitle(title);
                     setModalMeetingDateText(`${date} 참여`);
                     setIsModalOpen(true);
                   }}
                 />
-                <MyReviews data={myReviews} />
+                {/* ✅ MyReviews 클릭 시 모달 열기 */}
+                <MyReviews data={myReviews} onOpenModal={handleOpenMyReviews} />
+                {/* ✅ 리뷰 보기 버튼 클릭 시 모달 열기 */}
                 <MyMeetingsPage
                   upcoming={upcomingMeetings}
                   completed={completedMeetings}
-                  onOpenChat={(id) => alert(`톡방 이동 ${id}`)}
-                  onOpenReview={(id) => alert(`리뷰 보기 ${id}`)}
+                  onOpenChat={(id) => navigate(`/chat/${id}`)}
+                  onOpenReview={handleOpenMeetingReviews}
                 />
               </>
             )}
@@ -639,6 +713,7 @@ const MyPage: React.FC = () => {
         )}
       </main>
 
+      {/* 후기 작성 모달 */}
       <ReviewModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
@@ -648,9 +723,24 @@ const MyPage: React.FC = () => {
         meetingTitle={modalMeetingTitle}
         meetingDateText={modalMeetingDateText}
         onSubmitted={() => {
-          fetchAll();
-          fetchFollowCounts();
+          void fetchAll(); // ✅ FIX: Promise 무시 명시
+          void fetchFollowCounts(); // ✅ FIX: Promise 무시 명시
         }}
+      />
+
+      {/* ✅ 모임 리뷰 보기 모달 */}
+      <MeetingReviewsModal
+        isOpen={isMeetingReviewsOpen}
+        onClose={() => setIsMeetingReviewsOpen(false)}
+        meetingId={reviewMeetingId}
+        meetingTitle={reviewMeetingTitle}
+      />
+
+      {/* ✅ 내가 쓴 후기 모달 */}
+      <MyReviewsModal
+        isOpen={isMyReviewsModalOpen}
+        onClose={() => setIsMyReviewsModalOpen(false)}
+        reviews={myReviews}
       />
 
       <NotificationDropdown

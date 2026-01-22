@@ -4,11 +4,11 @@ import './SettingsTab.css';
 interface Props {
     onProfileEdit: () => void;
     onLogout: () => void;
-    notifyFollowMeeting: boolean;
-    notifyFollowReview: boolean;
+    notifyFollowMeeting?: boolean;  // ✅ optional로 변경
+    notifyFollowReview?: boolean;   // ✅ optional로 변경
     onToggleFollowMeeting: () => void;
     onToggleFollowReview: () => void;
-    isPublic: boolean;
+    isPublic?: boolean;             // ✅ optional로 변경
     onTogglePublic: () => void;
     onDeleteAccount: () => void;
 }
@@ -42,7 +42,11 @@ const SettingsTab: React.FC<Props> = ({
                         </div>
                     </div>
                     <label className="toggle-switch">
-                        <input type="checkbox" checked={isPublic} onChange={onTogglePublic} />
+                        <input
+                            type="checkbox"
+                            checked={isPublic ?? true}  // ✅ undefined 방지
+                            onChange={onTogglePublic}
+                        />
                         <span className="toggle-slider"></span>
                     </label>
                 </div>
@@ -56,7 +60,11 @@ const SettingsTab: React.FC<Props> = ({
                         </div>
                     </div>
                     <label className="toggle-switch">
-                        <input type="checkbox" checked={notifyFollowMeeting} onChange={onToggleFollowMeeting} />
+                        <input
+                            type="checkbox"
+                            checked={notifyFollowMeeting ?? true}  // ✅ undefined 방지
+                            onChange={onToggleFollowMeeting}
+                        />
                         <span className="toggle-slider"></span>
                     </label>
                 </div>
@@ -70,7 +78,11 @@ const SettingsTab: React.FC<Props> = ({
                         </div>
                     </div>
                     <label className="toggle-switch">
-                        <input type="checkbox" checked={notifyFollowReview} onChange={onToggleFollowReview} />
+                        <input
+                            type="checkbox"
+                            checked={notifyFollowReview ?? true}  // ✅ undefined 방지
+                            onChange={onToggleFollowReview}
+                        />
                         <span className="toggle-slider"></span>
                     </label>
                 </div>

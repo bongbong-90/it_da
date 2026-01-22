@@ -1,0 +1,417 @@
+/* ===== Overlay ===== */
+.meeting-reviews-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 1rem;
+    animation: mrmFadeIn 0.2s ease;
+}
+
+@keyframes mrmFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* ===== Modal Container ===== */
+.meeting-reviews-modal {
+    background: white;
+    border-radius: 24px;
+    width: 100%;
+    max-width: 480px;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 25px 80px rgba(0, 0, 0, 0.35);
+    animation: mrmSlideUp 0.3s ease;
+}
+
+@keyframes mrmSlideUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* ===== Header ===== */
+.mrm-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.25rem 1.5rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.mrm-header h2 {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: white;
+}
+
+.mrm-close {
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    font-size: 1.2rem;
+    color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.mrm-close:hover {
+    background: rgba(255, 255, 255, 0.35);
+    transform: rotate(90deg);
+}
+
+/* ===== My Reviews Header ===== */
+.my-reviews-header {
+    background: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%);
+}
+
+/* ===== Meeting Info ===== */
+.mrm-meeting-info {
+    padding: 1.25rem 1.5rem;
+    background: linear-gradient(135deg, #f8f9ff 0%, #f0f4ff 100%);
+    border-bottom: 1px solid #e8e8e8;
+}
+
+.mrm-meeting-title {
+    margin: 0 0 0.75rem 0;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #333;
+}
+
+.mrm-avg-rating {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.stars-display {
+    color: #f59e0b;
+    font-size: 1.1rem;
+    letter-spacing: 1px;
+}
+
+.mrm-avg-score {
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: #f59e0b;
+}
+
+.mrm-review-count {
+    font-size: 0.875rem;
+    color: #888;
+}
+
+/* ===== My Reviews Summary ===== */
+.my-reviews-summary {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+    background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+    border-bottom: 1px solid #fde68a;
+}
+
+.summary-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0 2.5rem;
+}
+
+.summary-number {
+    font-size: 2.25rem;
+    font-weight: 800;
+    background: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.summary-label {
+    font-size: 0.875rem;
+    color: #92400e;
+    margin-top: 0.25rem;
+    font-weight: 500;
+}
+
+.summary-divider {
+    width: 1px;
+    height: 50px;
+    background: linear-gradient(180deg, transparent, #f59e0b, transparent);
+}
+
+/* ===== Content ===== */
+.mrm-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1rem 1.5rem 1.5rem;
+    background: #fafafa;
+}
+
+/* ===== Loading ===== */
+.mrm-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 4rem 2rem;
+}
+
+.mrm-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid #e0e0e0;
+    border-top-color: #667eea;
+    border-radius: 50%;
+    animation: mrmSpin 0.8s linear infinite;
+}
+
+@keyframes mrmSpin {
+    to { transform: rotate(360deg); }
+}
+
+.mrm-loading p {
+    margin: 1rem 0 0;
+    color: #888;
+}
+
+/* ===== Empty State ===== */
+.mrm-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 4rem 2rem;
+}
+
+.mrm-empty-icon {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+    opacity: 0.8;
+}
+
+.mrm-empty p {
+    margin: 0;
+    font-size: 1rem;
+    color: #999;
+}
+
+/* ===== Review List ===== */
+.mrm-review-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+/* ===== Review Card ===== */
+.mrm-review-card {
+    background: white;
+    border: 1px solid #eee;
+    border-radius: 16px;
+    padding: 1.25rem;
+    transition: all 0.25s ease;
+}
+
+.mrm-review-card:hover {
+    border-color: #667eea;
+    box-shadow: 0 8px 25px rgba(102, 126, 234, 0.15);
+    transform: translateY(-2px);
+}
+
+.mrm-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 0.75rem;
+}
+
+/* ===== User Info ===== */
+.mrm-user {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.mrm-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    box-shadow: 0 3px 10px rgba(102, 126, 234, 0.3);
+}
+
+.mrm-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.mrm-avatar span {
+    color: white;
+    font-weight: 700;
+    font-size: 1.1rem;
+}
+
+.mrm-user-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.mrm-username {
+    font-weight: 600;
+    color: #333;
+    font-size: 0.95rem;
+}
+
+.mrm-date {
+    font-size: 0.8rem;
+    color: #999;
+}
+
+/* ===== Sentiment Badge ===== */
+.mrm-sentiment {
+    padding: 0.4rem 0.85rem;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+/* ===== Rating ===== */
+.mrm-rating {
+    margin-bottom: 0.75rem;
+    font-size: 1rem;
+}
+
+.mrm-rating-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+}
+
+/* ===== Review Text ===== */
+.mrm-text {
+    margin: 0;
+    font-size: 0.95rem;
+    line-height: 1.7;
+    color: #444;
+    word-break: break-word;
+}
+
+/* ===== My Review Card Specific ===== */
+.my-review-card {
+    background: linear-gradient(135deg, #fffbeb 0%, white 50%);
+    border-color: #fde68a;
+}
+
+.my-review-card:hover {
+    border-color: #f59e0b;
+    box-shadow: 0 8px 25px rgba(245, 158, 11, 0.2);
+}
+
+.my-review-meeting {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.meeting-emoji {
+    font-size: 1.2rem;
+}
+
+.meeting-name {
+    font-weight: 600;
+    color: #333;
+    font-size: 1rem;
+}
+
+/* ===== My Reviews Modal ===== */
+.my-reviews-modal .mrm-content {
+    background: linear-gradient(180deg, #fffbeb 0%, #fff 100%);
+}
+
+/* ===== Scrollbar ===== */
+.mrm-content::-webkit-scrollbar {
+    width: 6px;
+}
+
+.mrm-content::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+}
+
+.mrm-content::-webkit-scrollbar-thumb {
+    background: #ccc;
+    border-radius: 3px;
+}
+
+.mrm-content::-webkit-scrollbar-thumb:hover {
+    background: #aaa;
+}
+
+/* ===== Responsive ===== */
+@media (max-width: 480px) {
+    .meeting-reviews-modal {
+        max-height: 90vh;
+        border-radius: 20px;
+        margin: 0.5rem;
+    }
+
+    .mrm-header {
+        padding: 1rem 1.25rem;
+    }
+
+    .mrm-header h2 {
+        font-size: 1.1rem;
+    }
+
+    .mrm-content {
+        padding: 1rem;
+    }
+
+    .mrm-review-card {
+        padding: 1rem;
+    }
+
+    .summary-box {
+        padding: 0 1.5rem;
+    }
+
+    .summary-number {
+        font-size: 1.75rem;
+    }
+
+    .mrm-avatar {
+        width: 38px;
+        height: 38px;
+    }
+}

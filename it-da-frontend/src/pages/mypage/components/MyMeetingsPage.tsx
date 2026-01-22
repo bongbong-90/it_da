@@ -6,7 +6,8 @@ interface Props {
     upcoming: MyMeeting[];
     completed: MyMeeting[];
     onOpenChat?: (meetingId: number) => void;
-    onOpenReview?: (meetingId: number) => void;
+    // ✅ meetingTitle 추가
+    onOpenReview?: (meetingId: number, meetingTitle: string) => void;
 }
 
 const calcDDay = (dateTime: string) => {
@@ -89,7 +90,8 @@ const MyMeetingsPage: React.FC<Props> = ({ upcoming, completed, onOpenChat, onOp
                                     <button
                                         className="meeting-btn"
                                         type="button"
-                                        onClick={() => onOpenReview?.(m.meetingId)}
+                                        // ✅ meetingTitle 추가 전달
+                                        onClick={() => onOpenReview?.(m.meetingId, m.meetingTitle)}
                                     >
                                         {m.hasMyReview ? '리뷰 보기' : '리뷰 쓰기'}
                                     </button>

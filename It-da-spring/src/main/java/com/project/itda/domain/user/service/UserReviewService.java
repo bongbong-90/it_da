@@ -2,6 +2,7 @@ package com.project.itda.domain.user.service;
 
 import com.project.itda.domain.meeting.entity.Meeting;
 import com.project.itda.domain.meeting.repository.MeetingRepository;
+import com.project.itda.domain.notification.service.NotificationService;
 import com.project.itda.domain.participation.entity.Participation;
 import com.project.itda.domain.participation.enums.ParticipationStatus;
 import com.project.itda.domain.participation.repository.ParticipationRepository;
@@ -28,9 +29,10 @@ public class UserReviewService {
 
     private final UserRepository userRepository;
     private final MeetingRepository meetingRepository;
-    private final ParticipationRepository participationRepository;  // ✅ 변경!
+    private final ParticipationRepository participationRepository;
     private final UserReviewRepository userReviewRepository;
     private final SentimentAnalyzer sentimentAnalyzer;
+    private final NotificationService notificationService;  // ✅ 추가!
 
     @Transactional
     public UserReview createReview(Long currentUserId, Long meetingId, ReviewCreateRequest request) {
@@ -65,7 +67,7 @@ public class UserReviewService {
         UserReview review = UserReview.builder()
                 .user(user)
                 .meeting(meeting)
-                .participation(participation)  // ✅ participation 추가!
+                .participation(participation)
                 .rating(request.getRating())
                 .reviewText(request.getContent())
                 .sentiment(sentiment)
@@ -76,6 +78,20 @@ public class UserReviewService {
 
         UserReview savedReview = userReviewRepository.save(review);
         log.info("✅ 후기 작성 완료: reviewId={}, sentiment={}", savedReview.getReviewId(), sentiment);
+
+        // ✅ 팔로워들에게 후기 작성 알림 전송!
+        try {
+            notificationService.notifyFollowersAboutReview(
+                    user,
+                    savedReview.getReviewId(),
+                    meetingId,
+                    meeting.getTitle()
+            );
+            log.info("🔔 팔로워들에게 후기 작성 알림 전송 완료");
+        } catch (Exception e) {
+            log.error("❌ 팔로워 알림 전송 실패: {}", e.getMessage());
+            // 알림 실패해도 후기 작성은 성공해야 함
+        }
 
         return savedReview;
     }

@@ -33,9 +33,9 @@ public class ReviewResponse {
     private String username;
 
     /**
-     * 작성자 프로필 이미지
+     * 작성자 프로필 이미지 ✅ 프론트엔드와 일치
      */
-    private String userProfileImage;
+    private String profileImageUrl;
 
     /**
      * 모임 ID
@@ -43,14 +43,19 @@ public class ReviewResponse {
     private Long meetingId;
 
     /**
+     * 모임 제목 ✅ 추가
+     */
+    private String meetingTitle;
+
+    /**
      * 평점 (1~5)
      */
     private Integer rating;
 
     /**
-     * 후기 내용
+     * 후기 내용 ✅ reviewText → content
      */
-    private String reviewText;
+    private String content;
 
     // ========================================
     // AI 감성 분석 결과
