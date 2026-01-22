@@ -7,6 +7,7 @@ import com.project.itda.domain.participation.dto.request.ParticipationRequest;
 import com.project.itda.domain.participation.dto.request.ParticipationStatusRequest;
 import com.project.itda.domain.participation.dto.response.ParticipantListResponse;
 import com.project.itda.domain.participation.dto.response.ParticipationResponse;
+import com.project.itda.domain.participation.dto.response.MyRecentMeetingResponse;
 import com.project.itda.domain.participation.entity.Participation;
 import com.project.itda.domain.participation.enums.ParticipationStatus;
 import com.project.itda.domain.participation.repository.ParticipationRepository;
@@ -18,6 +19,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -31,8 +36,8 @@ public class ParticipationService {
 
     private final ParticipationRepository participationRepository;
     private final MeetingRepository meetingRepository;
-    private final NotificationService notificationService;  // ✅ 추가
-    private final UserFollowRepository userFollowRepository;  // ✅ 추가
+    private final NotificationService notificationService;
+    private final UserFollowRepository userFollowRepository;
 
     /**
      * 모임 참여 신청
@@ -269,6 +274,101 @@ public class ParticipationService {
         return participations.stream()
                 .map(this::toParticipationResponse)
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * ✅ 내가 참여 중인 모임 목록 (홈페이지 최근 접속용)
+     * APPROVED 또는 COMPLETED 상태의 모임만 최근 활동순으로 반환
+     */
+    @Transactional(readOnly = true)
+    public List<MyRecentMeetingResponse> getMyRecentMeetings(Long userId, int limit) {
+        log.info("📋 최근 참여 모임 조회 - userId: {}, limit: {}", userId, limit);
+
+        // APPROVED 상태 모임 조회
+        List<Participation> approvedList = participationRepository.findByUserIdAndStatus(
+                userId, ParticipationStatus.APPROVED);
+
+        // COMPLETED 상태 모임 조회
+        List<Participation> completedList = participationRepository.findByUserIdAndStatus(
+                userId, ParticipationStatus.COMPLETED);
+
+        // 합치고 최근순 정렬
+        List<Participation> allParticipations = new java.util.ArrayList<>();
+        allParticipations.addAll(approvedList);
+        allParticipations.addAll(completedList);
+
+        return allParticipations.stream()
+                .sorted(Comparator.comparing(this::getLastActivityTime).reversed())
+                .limit(limit)
+                .map(this::toMyRecentMeetingResponse)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 마지막 활동 시간 계산
+     */
+    private LocalDateTime getLastActivityTime(Participation p) {
+        if (p.getCompletedAt() != null) return p.getCompletedAt();
+        if (p.getApprovedAt() != null) return p.getApprovedAt();
+        return p.getAppliedAt();
+    }
+
+    /**
+     * Participation → MyRecentMeetingResponse 변환
+     */
+    private MyRecentMeetingResponse toMyRecentMeetingResponse(Participation participation) {
+        Meeting meeting = participation.getMeeting();
+        LocalDateTime lastActivity = getLastActivityTime(participation);
+
+        return MyRecentMeetingResponse.builder()
+                .meetingId(meeting.getMeetingId())
+                .title(meeting.getTitle())
+                .category(meeting.getCategory())
+                .subcategory(meeting.getSubcategory())
+                .icon(getCategoryIcon(meeting.getCategory()))
+                .timeAgo(getTimeAgo(lastActivity))
+                .type("chat")  // 채팅방으로 이동
+                .meetingTime(meeting.getMeetingTime())
+                .status(participation.getStatus().name())
+                .lastActivityAt(lastActivity)
+                .build();
+    }
+
+    /**
+     * 카테고리별 아이콘 반환
+     */
+    private String getCategoryIcon(String category) {
+        if (category == null) return "📅";
+
+        switch (category) {
+            case "스포츠": return "🏃";
+            case "맛집": return "🍽️";
+            case "문화예술": return "🎨";
+            case "스터디": return "📚";
+            case "취미활동": return "🎸";
+            case "소셜": return "🎉";
+            default: return "📅";
+        }
+    }
+
+    /**
+     * 시간 차이를 문자열로 변환
+     */
+    private String getTimeAgo(LocalDateTime dateTime) {
+        if (dateTime == null) return "";
+
+        LocalDateTime now = LocalDateTime.now();
+        long minutes = ChronoUnit.MINUTES.between(dateTime, now);
+        long hours = ChronoUnit.HOURS.between(dateTime, now);
+        long days = ChronoUnit.DAYS.between(dateTime, now);
+
+        if (minutes < 1) return "방금 전";
+        if (minutes < 60) return minutes + "분 전";
+        if (hours < 24) return hours + "시간 전";
+        if (days == 1) return "어제";
+        if (days < 7) return days + "일 전";
+        if (days < 30) return (days / 7) + "주일 전";
+        return (days / 30) + "개월 전";
     }
 
     /**
