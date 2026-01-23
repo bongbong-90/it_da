@@ -28,6 +28,30 @@
     background: #f8f9fa;
 }
 
+/* ✅ 하이라이트 스타일 (나의 선호도 보기) */
+.setting-item.highlight {
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.08) 0%, rgba(118, 75, 162, 0.08) 100%);
+    border-left: 4px solid #667eea;
+}
+
+.setting-item.highlight:hover {
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(118, 75, 162, 0.15) 100%);
+}
+
+.setting-item.highlight .setting-title {
+    color: #667eea;
+    font-weight: 700;
+}
+
+.setting-item.highlight .setting-icon {
+    animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+}
+
 .setting-left {
     display: flex;
     align-items: center;
@@ -53,6 +77,27 @@
     color: #6c757d;
 }
 
+.setting-arrow {
+    font-size: 18px;
+    color: #adb5bd;
+    transition: transform 0.2s;
+}
+
+.setting-item:hover .setting-arrow {
+    transform: translateX(4px);
+    color: #667eea;
+}
+
+/* 위험 아이템 (계정 삭제) */
+.setting-item.danger:hover {
+    background: #fff5f5;
+}
+
+.setting-item.danger:hover .setting-arrow {
+    color: #dc3545;
+}
+
+/* 토글 스위치 */
 .toggle-switch {
     position: relative;
     width: 50px;
@@ -91,9 +136,28 @@
 }
 
 input:checked + .toggle-slider {
-    background-color: #667eea;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
 
 input:checked + .toggle-slider:before {
     transform: translateX(24px);
+}
+
+/* 반응형 */
+@media (max-width: 480px) {
+    .setting-item {
+        padding: 16px 20px;
+    }
+
+    .setting-icon {
+        font-size: 22px;
+    }
+
+    .setting-title {
+        font-size: 14px;
+    }
+
+    .setting-desc {
+        font-size: 12px;
+    }
 }
