@@ -308,6 +308,11 @@ const MeetingCreatePage = () => {
                 const roadAddress = data.roadAddress;
                 const selectedAddr = roadAddress || fullAddress;
 
+                if (!window.kakao || !window.kakao.maps) {
+                    alert("카카오맵 로드 중입니다. 잠시 후 다시 시도해주세요.");
+                    return;
+                }
+
                 // 💡 Geocoder를 사용하기 전에 라이브러리가 로드되었는지 확실히 확인합니다.
                 window.kakao.maps.load(() => {
                     if (!window.kakao.maps.services || !window.kakao.maps.services.Geocoder) {
