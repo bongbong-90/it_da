@@ -113,7 +113,7 @@ const ChatRoomPage: React.FC = () => {
           .join("\n\n");
 
       toast(message, {
-        duration: 8000,
+        duration: 5000,
         icon: "🤖",
       });
     } catch (error: any) {

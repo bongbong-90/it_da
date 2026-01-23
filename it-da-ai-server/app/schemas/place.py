@@ -44,6 +44,7 @@ class Point(BaseModel):
 class PlaceRecommendRequest(BaseModel):
     meeting_id: int
     meeting_category: str
+    meeting_subcategory: str | None = None  # ⭐ 추가
     meeting_title: str  # ✅ 추가 (키워드 추출에 필요)
     meeting_description: Optional[str] = ""
     participants: List[ParticipantLocation] = Field(..., min_items=2)

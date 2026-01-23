@@ -104,8 +104,9 @@ public class MeetingRecommendationService {
             PlaceRecommendRequest aiRequest = PlaceRecommendRequest.builder()
                     .meetingId(meetingId.intValue())
                     .meetingCategory(meeting.getCategory())
+                    .meetingSubcategory(meeting.getSubcategory()) // ⭐ 이 줄 추가
                     .meetingTitle(meeting.getTitle())
-                    .meetingDescription(meeting.getDescription()) // null이면 ""로
+                    .meetingDescription(meeting.getDescription())
                     .participants(locations)
                     .maxDistance(3.0)
                     .topN(3)

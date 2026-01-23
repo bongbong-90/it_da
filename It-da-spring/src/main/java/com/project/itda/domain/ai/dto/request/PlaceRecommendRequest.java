@@ -38,6 +38,8 @@ public class PlaceRecommendRequest {
     @JsonProperty("meeting_category")
     private String meetingCategory;
 
+    private String meetingSubcategory; // ⭐ 추가
+
     @JsonProperty("meeting_title")
     private String meetingTitle;
 
