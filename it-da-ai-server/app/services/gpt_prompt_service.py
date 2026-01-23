@@ -102,6 +102,13 @@ class GPTPromptService:
     - "남자가 할만한 모임" → {{"category": "스포츠", "gender_hint": "M"}}
     - "여자가 할만한 모임" → {{"category": "카페", "gender_hint": "F"}}
 
+    EXAMPLES = 
+    예시:
+    - "배고파" → category: 맛집, location_query: null
+    - "퇴근하고 집 근처에서 뭐하지" → category: null, location_query: "집 근처"
+    - "강남역 근처 카페" → category: 카페, location_query: "강남역"
+    
+
     ================================
     🎯 subcategory 매핑 (중요!)
     ================================

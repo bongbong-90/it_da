@@ -10,7 +10,7 @@ public class WebConfig implements WebMvcConfigurer {
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
         // ✅ 맥 절대 경로로 설정!
-        String uploadPath = "file:/Users/bominkim/it-da/It-da-spring/uploads/";
+        String uploadPath = "file:D:\\it-da\\It-da-spring\\uploads";
 
         System.out.println("📁 이미지 서빙 경로: " + uploadPath);
 
