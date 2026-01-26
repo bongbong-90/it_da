@@ -1,11 +1,20 @@
 /* src/pages/chat/ChatRoomPage.css */
 
-.chat-room-page {
+.chat-room-container {
+    position: fixed;  /* 화면에 고정시켜서 부모 레이아웃 탈출 */
+    top: 0;
+    left: 0;
+    width: 100vw;     /* 화면 전체 너비 */
+    height: 100vh;    /* 화면 전체 높이 */
+    z-index: 9999;    /* 가장 위에 표시 (노란색 헤더 덮기) */
+
     display: flex;
     flex-direction: column;
-    height: 100vh;
     background: #f8f9fa;
     color: #212529;
+    margin: 0;
+    padding: 0;
+    overflow: hidden; /* 이중 스크롤 방지 */
 }
 
 /* 헤더 */
@@ -29,12 +38,16 @@
 }
 
 .back-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;      /* 헤더 높이에 맞춤 */
+    padding: 0 8px;    /* 터치 영역 확보 */
     background: none;
     border: none;
     font-size: 1.5rem;
     cursor: pointer;
     color: #495057;
-    padding: 4px;
     line-height: 1;
     z-index: 2;
 }
@@ -77,9 +90,40 @@
 
 /* 배너 디자인 */
 .notice-banner {
-    display: none;
+    background-color: #fff3cd; /* 연한 노란색 배경 */
+    color: #856404;            /* 짙은 갈색 텍스트 */
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    border-bottom: 1px solid #ffeeba;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    z-index: 10;
+
+    /* 헤더가 fixed(고정)일 경우를 대비해 위치 조정 */
+    position: relative;
+    animation: slideDown 0.3s ease-out;
+}
+.notice-icon {
+    font-size: 1.1rem;
 }
 
+.notice-text {
+    flex: 1;
+    word-break: break-all; /* 긴 텍스트 줄바꿈 */
+}
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
 .ai-banner {
     background: linear-gradient(135deg, #667eea, #764ba2);
     padding: 0.8rem 1rem;
@@ -413,4 +457,20 @@
     border: 1px solid #eee;
     position: relative;
     z-index: 2; /* 선 위에 표시 */
+}
+.chat-img-content {
+    max-width: 280px;      /* 가로 최대 크기 제한 (너무 크지 않게) */
+    max-height: 350px;     /* 세로 최대 크기 제한 */
+    width: auto;           /* 비율 유지 */
+    height: auto;          /* 비율 유지 */
+    border-radius: 12px;   /* 모서리 둥글게 */
+    object-fit: cover;     /* 이미지 비율 유지하며 채우기 */
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1); /* 살짝 그림자 */
+    cursor: zoom-in;       /* 클릭 가능 표시 */
+    margin-top: 4px;
+}
+@media (max-width: 480px) {
+    .chat-img-content {
+        max-width: 220px;
+    }
 }

@@ -1,6 +1,8 @@
-package com.project.itda.global.controller;
+package com.project.itda.domain.user.controller;
+
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.http.HttpHeaders;
@@ -18,25 +20,35 @@ import java.nio.file.Paths;
 public class FileController {
 
     // ✅ 너의 맥 경로로 설정!
-    private final Path uploadPath = Paths.get("/Users/bominkim/it-da/It-da-spring/uploads").toAbsolutePath().normalize();
+    @Value("${file.upload-dir}")
+    private String uploadDir;
+
+    @GetMapping("/{fileName}")
+    public ResponseEntity<Resource> serveChatImage(@PathVariable String fileName) {
+        return serveFile(fileName, "");
+    }
 
     @GetMapping("/meetings/{fileName}")
     public ResponseEntity<Resource> serveMeetingImage(@PathVariable String fileName) {
+        return serveFile(fileName, "meetings"); // 공통 메서드 호출
+    }
+
+    // ✅ 중복 로직을 처리할 공통 메서드 추가
+    private ResponseEntity<Resource> serveFile(String fileName, String subDir) {
         try {
-            Path filePath = uploadPath.resolve("meetings").resolve(fileName).normalize();
+            // subDir이 있으면 해당 폴더 안에서 찾고, 없으면 uploadDir 바로 아래서 찾음
+            Path filePath = Paths.get(uploadDir).resolve(subDir).resolve(fileName).normalize();
             Resource resource = new UrlResource(filePath.toUri());
 
             log.info("📁 이미지 요청: {}", filePath);
 
             if (resource.exists() && resource.isReadable()) {
-                String contentType = "image/png";
-                if (fileName.endsWith(".jpg") || fileName.endsWith(".jpeg")) {
+                String contentType = "image/png"; // 기본값
+                if (fileName.toLowerCase().endsWith(".jpg") || fileName.toLowerCase().endsWith(".jpeg")) {
                     contentType = "image/jpeg";
-                } else if (fileName.endsWith(".gif")) {
+                } else if (fileName.toLowerCase().endsWith(".gif")) {
                     contentType = "image/gif";
                 }
-
-                log.info("✅ 이미지 서빙 성공: {}", fileName);
 
                 return ResponseEntity.ok()
                         .contentType(MediaType.parseMediaType(contentType))

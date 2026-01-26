@@ -1,69 +1,113 @@
-/* ChatRoomPage.css 에 추가 */
+/* src/components/chat/ChatMemberList.css */
+
+.member-list-container {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
 
 /* 멤버 아이템 전체 레이아웃 */
 .member-item {
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 8px;
-    border-radius: 8px;
-    transition: background 0.3s;
+    padding: 8px 12px;
+    border-radius: 12px;
+    background-color: #fff;
+    border: 1px solid #f1f3f5;
+    transition: all 0.2s;
 }
 
 .member-item:hover {
     background-color: #f8f9fa;
+    transform: translateX(2px);
 }
 
-/* 아바타 원형 디자인 */
+.member-item.is-me {
+    background-color: #f0f4ff; /* 나는 약간 푸른 배경 */
+    border-color: #e0e7ff;
+}
+
+/* 아바타 */
 .member-avatar {
-    width: 40px;
-    height: 40px;
+    width: 42px;
+    height: 42px;
     border-radius: 50%;
-    background: linear-gradient(135deg, #6366f1, #a855f7); /* 인디고-퍼플 그라데이션 */
+    background: linear-gradient(135deg, #6366f1, #a855f7);
     display: flex;
     align-items: center;
     justify-content: center;
     color: white;
     font-weight: bold;
+    font-size: 1.1rem;
     flex-shrink: 0;
+    overflow: hidden;
 }
 
-/* 텍스트 정보 영역 */
+.avatar-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* 정보 영역 */
 .member-info {
     flex: 1;
-    min-width: 0; /* 텍스트 생략(...) 처리를 위한 설정 */
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    overflow: hidden; /* 긴 이름 처리 */
 }
 
 .member-name {
     font-weight: 600;
-    font-size: 0.875rem;
-    color: #1f2937;
+    font-size: 0.95rem;
+    color: #333;
     white-space: nowrap;
     overflow: hidden;
-    text-overflow: ellipsis; /* 이름이 길면 ... 처리 */
+    text-overflow: ellipsis;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.me-badge {
+    font-size: 0.75rem;
+    color: #6366f1;
+    font-weight: 700;
 }
 
 .member-role {
     font-size: 0.75rem;
-    color: #6b7280;
+    color: #888;
     margin-top: 2px;
 }
 
-/* 사이드바 전용 버튼 공통 스타일 */
+.member-role.leader {
+    color: #ff9f43; /* 모임장은 주황색 강조 */
+    font-weight: 600;
+}
+
+/* 버튼 영역 */
+.member-actions {
+    display: flex;
+    gap: 6px;
+}
+
 .btn-mini {
-    padding: 4px 12px;
+    padding: 6px 12px;
     font-size: 0.75rem;
-    font-weight: 700;
-    border-radius: 12px;
+    font-weight: 600;
+    border-radius: 20px;
     border: 1px solid;
+    background: white;
+    cursor: pointer;
     transition: all 0.2s;
-    white-space: nowrap;
 }
 
 .btn-follow {
     border-color: #6366f1;
     color: #6366f1;
-    background: white;
 }
 
 .btn-follow:hover {
@@ -72,12 +116,11 @@
 }
 
 .btn-report {
-    border-color: #ef4444;
-    color: #ef4444;
-    background: white;
+    border-color: #ff6b6b;
+    color: #ff6b6b;
 }
 
 .btn-report:hover {
-    background: #ef4444;
+    background: #ff6b6b;
     color: white;
 }

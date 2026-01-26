@@ -68,6 +68,10 @@ const ChatRoomPage: React.FC = () => {
     const [roomMembers, setRoomMembers] = useState<{ userId: number; nickname: string }[]>([]);
     const [inputValue, setInputValue] = useState<string>("");
     const navigate=useNavigate();
+    const [linkedMeetingId, setLinkedMeetingId] = useState<number | null>(null);
+    // ✨ [추가] 현재 사용자가 모임장인지 확인
+    const isLeader = members.find(m => m.userId === currentUser?.userId)?.role === "LEADER";
+    const [notice, setNotice] = useState<string>("");
 
     // AI 추천 알림창 (HTML 기능 반영)
     const showAIRecommendation = () => {
@@ -233,7 +237,20 @@ const ChatRoomPage: React.FC = () => {
                 try {
                     const rooms = await chatApi.getRooms();
                     const currentRoom = rooms.find((r: any) => r.chatRoomId === Number(roomId));
-                    if (currentRoom) setRoomTitle(currentRoom.roomName);
+                    if (currentRoom) {
+                        setRoomTitle(currentRoom.roomName);
+
+                        // ✨ [핵심] 백엔드에서 meetingId를 보내준다고 가정
+                        if (currentRoom.meetingId) {
+                            setLinkedMeetingId(currentRoom.meetingId);
+                            console.log("🔗 연결된 모임 ID:", currentRoom.meetingId);
+                        } else {
+                            console.warn("⚠️ 채팅방 정보에 meetingId가 없습니다. 백엔드 DTO를 확인해주세요.");
+                        }
+                        if (currentRoom.notice) {
+                            setNotice(currentRoom.notice);
+                        }
+                    }
                 } catch (e) {
                     console.warn("⚠️ 방 제목 로드 실패");
                 }
@@ -252,7 +269,7 @@ const ChatRoomPage: React.FC = () => {
                         createdAt: m.createdAt || new Date().toISOString(),
                         updatedAt: m.updatedAt || new Date().toISOString(),
                         profileImageUrl: m.profileImageUrl || "",
-                        role: m.userId === currentUser.userId ? "ME" : m.role === "ORGANIZER" ? "LEADER" : "MEMBER"
+                        role: m.role === "ORGANIZER" ? "LEADER" : "MEMBER"
                     }));
                     setMembers(formattedMembers);
                     setRoomMembers(rawMembers.map(m => ({
@@ -340,7 +357,24 @@ const ChatRoomPage: React.FC = () => {
 
     },[roomId, currentUser, setMessages, markAllAsRead,decrementUnreadCount]); // ✅ 의존성 배열 정리
 
+    const handleEditMeeting = () => {
+        if (!linkedMeetingId) {
+            toast.error("연결된 모임 정보를 찾을 수 없습니다.");
+            return;
+        }
+        // MeetingEditPage 경로로 이동
+        navigate(`/meetings/${linkedMeetingId}/edit`);
+    };
 
+    // ✨ [추가] 모임 상세보기 이동 핸들러
+    const handleMeetingDetail = () => {
+        if (!linkedMeetingId) {
+            toast.error("연결된 모임 정보를 찾을 수 없습니다.");
+            return;
+        }
+        // MeetingDetailPage 경로로 이동
+        navigate(`/meetings/${linkedMeetingId}`);
+    };
 
     const handleSendMessage = () => {
         if (!roomId || !currentUser?.email || !currentUser?.userId || !inputValue.trim()) {
@@ -442,7 +476,19 @@ const ChatRoomPage: React.FC = () => {
             );
         });
     };
+    const handleEditNotice = async () => {
+        const newNotice = prompt("새로운 공지사항을 입력하세요:", notice);
+        if (newNotice === null) return; // 취소 시
 
+        try {
+            await chatApi.updateNotice(Number(roomId), newNotice);
+            setNotice(newNotice); // 화면 즉시 반영
+            toast.success("공지사항이 등록되었습니다.");
+        } catch (error) {
+            console.error("공지 수정 실패:", error);
+            toast.error("공지사항 등록에 실패했습니다.");
+        }
+    };
 
 
     return (
@@ -464,10 +510,12 @@ const ChatRoomPage: React.FC = () => {
             </header>
 
             {/* ✅ 공지사항 배너 */}
-            <div className="notice-banner">
-                <span className="notice-icon">📢</span>
-                <span className="notice-text">모임 D-2! 여의도 한강공원 물빛광장에서 만나요</span>
-            </div>
+            {notice && (
+                <div className="notice-banner">
+                    <span className="notice-icon">📢</span>
+                    <span className="notice-text">{notice}</span>
+                </div>
+            )}
 
             {/* ✅ AI 추천 배너 (그라데이션 디자인) */}
             <div className="ai-banner" onClick={showAIRecommendation}>
@@ -562,11 +610,26 @@ const ChatRoomPage: React.FC = () => {
                         </div>
                         {/* ✅ 사이드바 하단 모임 관리 버튼 추가 (image_a85aa1.png 디자인 반영) */}
                         <div className="menu-section admin-actions">
-                            <button className="menu-btn"><span className="icon">⚙️</span> 모임 정보 수정</button>
-                            <button className="menu-btn"><span className="icon">📢</span> 공지사항 수정</button>
-                            <button className="menu-btn"><span className="icon">📄</span> 모임 상세보기</button>
+                            {/* 모임장(LEADER)일 때만 수정 버튼 표시 */}
+                            {isLeader && (
+                                <button className="menu-btn" onClick={handleEditMeeting}>
+                                    <span className="icon">⚙️</span> 모임 정보 수정
+                                </button>
+                            )}
+
+                            {/* 공지사항은 추후 구현 */}
+                            <button className="menu-btn" onClick={handleEditNotice}>
+                                <span className="icon">📢</span> 공지사항 수정
+                            </button>
+
+                            {/* 상세보기는 누구나 가능 */}
+                            <button className="menu-btn" onClick={handleMeetingDetail}>
+                                <span className="icon">📄</span> 모임 상세보기
+                            </button>
+
                             <button className="menu-btn"><span className="icon">➕</span> 멤버 초대</button>
                         </div>
+
                         <div className="menu-section">
                             <button className="menu-btn danger" onClick={() => { if(confirm('방을 나가시겠습니까?')) window.history.back(); }}>🚪 톡방 나가기</button>
                         </div>

@@ -33,6 +33,17 @@ public class ChatImageController {
 
     @PostMapping("/{roomId}")
     public ResponseEntity<?> uploadImage(@PathVariable Long roomId, @RequestParam("file") MultipartFile file) {
+        Object sessionObj = httpSession.getAttribute("user");
+        log.debug("Session user object: {}", sessionObj);
+
+        if (sessionObj == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+
+        // 타입 안전 확인 후 캐스팅
+        if (!(sessionObj instanceof SessionUser)) {
+            log.error("세션 객체 타입 불일치: 기대(SessionUser), 실제({})", sessionObj.getClass().getName());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("인증 정보 처리 오류");
+        }
+
         SessionUser user = (SessionUser) httpSession.getAttribute("user");
         if (user == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
 
@@ -50,6 +61,7 @@ public class ChatImageController {
             imageMsg.put("type", "IMAGE");
             imageMsg.put("content", imageUrl);
             imageMsg.put("senderEmail", user.getEmail());
+            imageMsg.put("senderId", user.getUserId());
             imageMsg.put("senderNickname", user.getNickname());
             imageMsg.put("unreadCount", unreadCount);
             imageMsg.put("sentAt", LocalDateTime.now());

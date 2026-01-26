@@ -94,22 +94,7 @@ public class ChatRoomService {
     // ✅ 모든 방을 DTO 리스트로 변환하여 반환 (순환 참조 방지 핵심)
     public List<ChatRoomResponse> findAllRoomsAsResponse() {
         return chatRoomRepository.findAll().stream()
-                .map(room -> {
-                    // 마지막 메시지가 없을 경우를 대비한 안전한 처리
-                    ChatMessage lastMsg = room.getMessages().isEmpty() ? null :
-                            room.getMessages().get(room.getMessages().size() - 1);
-
-                    return ChatRoomResponse.builder()
-                            .chatRoomId(room.getId())
-                            .roomName(room.getRoomName())
-                            .participantCount(room.getParticipants().size())
-                            .maxParticipants(room.getMaxParticipants())
-                            .category(room.getCategory())
-                            // 마지막 메시지가 없으면 기본 문구 출력 (Null 방지)
-                            .lastMessage(lastMsg != null ? lastMsg.getContent() : "대화 내용이 없습니다.")
-                            .lastMessageTime(lastMsg != null ? lastMsg.getCreatedAt() : LocalDateTime.now())
-                            .build();
-                })
+                .map(this::convertToResponse) // ✅ 이미 수정해둔 convertToResponse 메서드 활용
                 .collect(Collectors.toList());
     }
 
@@ -124,12 +109,14 @@ public class ChatRoomService {
 
         return ChatRoomResponse.builder()
                 .chatRoomId(room.getId())
+                .meetingId(room.getMeetingId())
                 .roomName(room.getRoomName())
                 .participantCount(room.getParticipants() != null ? room.getParticipants().size() : 0)
                 .maxParticipants(room.getMaxParticipants())
                 .category(room.getCategory() != null ? room.getCategory() : "일반")
                 .lastMessage(lastMsg != null ? lastMsg.getContent() : "아직 대화가 없습니다.")
                 .lastMessageTime(lastMsg != null ? lastMsg.getCreatedAt() : LocalDateTime.now())
+                .notice(room.getNotice())
                 .build();
     }
 
@@ -241,5 +228,15 @@ public class ChatRoomService {
         // 3. 결과 = 전체 참여자 - 현재 방에 들어와 있는 사람 수
         // 이렇게 해야 방에 없는 사람 수만큼 숫자가 안정적으로 유지됩니다.
         return Math.max(0, (int)(totalParticipants - onlineCount));
+    }
+    @Transactional
+    public void updateNotice(Long roomId, String notice) {
+        ChatRoom room = chatRoomRepository.findById(roomId)
+                .orElseThrow(() -> new IllegalArgumentException("채팅방을 찾을 수 없습니다."));
+
+        room.updateNotice(notice);
+
+        // (선택사항) 여기서 "공지가 등록되었습니다"라는 시스템 메시지를 보내거나
+        // 소켓으로 실시간 업데이트 신호를 보낼 수도 있습니다.
     }
 }

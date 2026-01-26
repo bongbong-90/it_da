@@ -102,6 +102,8 @@ public class MeetingService {
 
         Meeting savedMeeting = meetingRepository.save(meeting);
 
+        chatRoom.updateMeetingId(savedMeeting.getMeetingId());
+
         ChatParticipant chatOrganizer = ChatParticipant.builder()
                 .chatRoom(chatRoom)
                 .user(user)

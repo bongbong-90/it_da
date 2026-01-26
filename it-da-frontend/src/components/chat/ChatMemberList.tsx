@@ -1,5 +1,6 @@
 import React from "react";
 import { User } from "../../types/user.types";
+import {useAuthStore} from "@/stores/useAuthStore.ts";
 
 interface Props {
     members: User[];
@@ -8,30 +9,39 @@ interface Props {
 }
 
 const ChatMemberList: React.FC<Props> = ({ members, onFollow, onReport }) => {
+    const { user: currentUser } = useAuthStore();
+
     return (
-        <div className="flex flex-col gap-3">
-            {members.map((member) => (
-                <div key={member.userId} className="member-item">
-                    {/* 아바타 */}
-                    <div className="member-avatar">
-                        {(member.name || member.nickname || member.username)[0]}
-                    </div>
+        <div className="member-list-container">
+            {members.map((member) => {
+                const isMe = member.userId === currentUser?.userId;
+                const isLeader = member.role === "LEADER";
 
-                    {/* 닉네임 중복 방지 로직이 적용된 정보 영역 */}
-                    <div className="flex-1 min-w-0">
-                        <div className="font-semibold text-sm text-gray-800 truncate">
-                            {/* ✅ 중복 방지: member.name 혹은 nickname 중 하나만 사용 */}
-                            {member.name || member.nickname || member.username}
+                return (
+                    <div key={member.userId} className={`member-item ${isMe ? "is-me" : ""}`}>
+                        {/* 아바타 */}
+                        <div className="member-avatar">
+                            {member.profileImageUrl ? (
+                                <img src={member.profileImageUrl} alt="profile" className="avatar-img" />
+                            ) : (
+                                (member.name || member.nickname || member.username)?.[0] || "?"
+                            )}
                         </div>
-                        <div className="text-xs text-gray-500">
-                            {member.role === "ME" ? "나" : member.role === "LEADER" ? "👑 모임장" : "멤버"}
-                        </div>
-                    </div>
 
-                    {/* 버튼 영역 */}
-                    <div className="flex gap-2 flex-shrink-0">
-                        {member.role !== "ME" && (
-                            <>
+                        {/* 정보 영역 */}
+                        <div className="member-info">
+                            <div className="member-name">
+                                {member.name || member.nickname || member.username}
+                                {isMe && <span className="me-badge">(나)</span>}
+                            </div>
+                            <div className={`member-role ${isLeader ? "leader" : ""}`}>
+                                {isLeader ? "👑 모임장" : "멤버"}
+                            </div>
+                        </div>
+
+                        {/* 버튼 영역 (나는 버튼 안 보임) */}
+                        {!isMe && (
+                            <div className="member-actions">
                                 <button
                                     onClick={() => onFollow(member.userId)}
                                     className="btn-mini btn-follow"
@@ -44,11 +54,11 @@ const ChatMemberList: React.FC<Props> = ({ members, onFollow, onReport }) => {
                                 >
                                     신고
                                 </button>
-                            </>
+                            </div>
                         )}
                     </div>
-                </div>
-            ))}
+                );
+            })}
         </div>
     );
 };

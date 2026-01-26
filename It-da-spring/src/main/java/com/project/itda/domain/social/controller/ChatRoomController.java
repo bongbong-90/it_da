@@ -74,4 +74,13 @@ public class ChatRoomController {
         List<ChatRoomResponse> myRooms = chatRoomService.findMyRooms(user.getEmail());
         return ResponseEntity.ok(myRooms);
     }
+    @PutMapping("/rooms/{roomId}/notice")
+    public ResponseEntity<Void> updateNotice(
+            @PathVariable Long roomId,
+            @RequestBody Map<String, String> request
+    ) {
+        String notice = request.get("notice");
+        chatRoomService.updateNotice(roomId, notice);
+        return ResponseEntity.ok().build();
+    }
 }

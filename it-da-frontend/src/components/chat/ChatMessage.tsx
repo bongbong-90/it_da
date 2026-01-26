@@ -1,5 +1,5 @@
 // src/components/chat/ChatMessage.tsx
-import React from "react";
+import React, {useState} from "react";
 import { ChatMessage as ChatMessageType } from "@/stores/useChatStore.ts";
 import "./ChatMessage.css";
 import VoteMessage from "@/components/chat/VoteMessage.tsx";
@@ -15,6 +15,7 @@ interface Props {
 
 const ChatMessage: React.FC<Props> = ({ message, isMine }) => {
     const { user: currentUser } = useAuthStore();
+    const [isModalOpen, setIsModalOpen] = useState(false);
 
     // 1. metadata 파싱 (새로고침 시 문자열 대응)
     const parsedData = React.useMemo(() => {
@@ -138,9 +139,27 @@ const ChatMessage: React.FC<Props> = ({ message, isMine }) => {
 
         // 3. IMAGE 타입
         if (message.type === 'IMAGE') {
-            return <img src={`http://localhost:8080${message.content}`} alt="uploaded" className="chat-img" />;
-        }
+            return (
+                <>
+                    <img
+                        src={`http://localhost:8080${message.content}`}
+                        alt="uploaded"
+                        className="chat-img"
+                        onClick={() => setIsModalOpen(true)} // ✅ 클릭 시 모달 열기
+                        style={{ cursor: 'zoom-in' }}
+                    />
 
+                    {/* ✅ 사진 확대 모달 포탈/컴포넌트 대체용 단순 구조 */}
+                    {isModalOpen && (
+                        <div className="image-full-modal" onClick={() => setIsModalOpen(false)}>
+                            <div className="modal-overlay"></div>
+                            <img src={`http://localhost:8080${message.content}`} alt="full" className="full-image-content" onClick={(e) => e.stopPropagation()} />
+                            <span className="close-x" onClick={() => setIsModalOpen(false)}>×</span>
+                        </div>
+                    )}
+                </>
+            );
+        }
         // 4. 일반 텍스트: 위의 특수 타입들에 해당하지 않는 경우에만 실행됨
         return <p className="chat-text">{message.content}</p>;
     };
@@ -182,10 +201,10 @@ const ChatMessage: React.FC<Props> = ({ message, isMine }) => {
                          style={{
                              width: (message.type === 'POLL' || message.type === 'BILL') ? '100%' : 'auto',
                              maxWidth: (message.type === 'POLL' || message.type === 'BILL') ? '400px' : '70%',
-                             background: (message.type === 'POLL' || message.type === 'BILL') ? '#ffffff' : undefined,
-                             border: (message.type === 'POLL' || message.type === 'BILL') ? '1px solid #e9ecef' : undefined,
-                             boxShadow: (message.type === 'POLL' || message.type === 'BILL') ? '0 4px 12px rgba(0,0,0,0.08)' : undefined,
-                             padding: (message.type === 'POLL' || message.type === 'BILL') ? '0' : '12px',
+                             background: (message.type === 'IMAGE') ? 'transparent' : (message.type === 'POLL' || message.type === 'BILL') ? '#ffffff' : undefined,
+                             border: (message.type === 'IMAGE') ? 'none' : (message.type === 'POLL' || message.type === 'BILL') ? '1px solid #e9ecef' : undefined,
+                             boxShadow: (message.type === 'IMAGE') ? 'none' : (message.type === 'POLL' || message.type === 'BILL') ? '0 4px 12px rgba(0,0,0,0.08)' : undefined,
+                             padding: (message.type === 'IMAGE') ? '0' : (message.type === 'POLL' || message.type === 'BILL') ? '0' : '12px',
                              borderRadius: '16px',
                              overflow: 'hidden' // ✅ 내부 요소가 둥근 모서리를 빠져나가지 않게 함
                          }}>

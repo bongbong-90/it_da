@@ -142,6 +142,12 @@ class ChatApi {
         });
         return response.data.imageUrl; // 서버에서 반환한 /uploads/... 경로
     }
+    async updateNotice(roomId: number, notice: string) {
+        await axios.put(`${API_BASE_URL}/api/social/chat/rooms/${roomId}/notice`,
+            { notice },
+            { withCredentials: true }
+        );
+    }
 
 }
 

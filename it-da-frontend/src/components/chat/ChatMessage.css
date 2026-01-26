@@ -181,3 +181,93 @@
     opacity: 0.9;
     border-style: double; /* 테두리를 두 줄로 만들어 강조 */
 }
+.message-item.mine.type-image .chat-bubble {
+    background: transparent !important; /* 보라색 그라데이션 제거 */
+    padding: 0;                          /* 여백 제거 */
+    box-shadow: none;                    /* 그림자 제거 (필요 시) */
+}
+
+/* 상대방 사진 메시지도 배경 제거 */
+.message-item.others.type-image .chat-bubble {
+    background: transparent !important;
+    padding: 0;
+}
+.mine-bubble.image-type {
+    background: transparent !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+}
+.image-full-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(0, 0, 0, 0.9);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+    cursor: zoom-out;
+    backdrop-filter: none;
+}
+
+.full-image-content {
+    max-width: 90vw;
+    max-height: 90vh;
+    object-fit: contain; /* 비율 유지하며 전체 표시 */
+    border-radius: 4px;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+    z-index: 100000; /* 배경보다 더 위에 */
+}
+
+.close-x {
+    position: absolute;
+    top: 30px;
+    right: 40px;
+    color: white;
+    font-size: 50px;
+    cursor: pointer;
+    z-index: 100001;
+    font-weight: bold;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+}
+.chat-img {
+    /* 최대 너비를 부모 컨테이너(말풍선 영역)의 100%로 설정하되,
+       너무 커지지 않게 300px 정도로 제한합니다. */
+    max-width: 100%;
+    width: auto;      /* 비율 유지 */
+    height: auto;     /* 비율 유지 */
+
+    /* (선택사항) 세로로 너무 긴 이미지 방지 */
+    max-height: 400px;
+
+    /* 이미지 비율을 유지하면서 영역을 꽉 채우게 (찌그러짐 방지) */
+    object-fit: cover;
+
+    /* 모서리 둥글게 */
+    border-radius: 12px;
+
+    /* 약간의 그림자 추가 */
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+
+    /* 클릭 가능하다는 커서 표시 */
+    cursor: zoom-in;
+}
+
+/* 2. (중요) 이미지 타입일 때 말풍선 래퍼의 크기도 맞춰줍니다 */
+/* 본인 메시지일 때 */
+.message-item.mine .message-bubble-wrapper .image-type {
+    /* 배경을 투명하게 하고 padding을 없앴으므로,
+       너비를 이미지 크기에 딱 맞게 줄여줍니다. */
+    width: fit-content;
+    max-width: 300px; /* 이미지 최대 너비와 맞춤 */
+    margin-left: auto; /* 오른쪽 정렬 유지 */
+}
+
+/* 상대방 메시지일 때 */
+.message-item.others .message-bubble-wrapper .image-type {
+    width: fit-content;
+    max-width: 300px;
+    margin-right: auto; /* 왼쪽 정렬 유지 */
+}

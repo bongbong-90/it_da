@@ -9,7 +9,6 @@ import ProtectedRoute from "./ProtectedRoute";
 import PublicRoute from "./PublicRoute";
 import OAuth2CallbackPage from "@/pages/auth/OAuth2CallbackPage";
 import ChatRoomPage from "@/pages/chat/ChatRoomPage";
-import TestChatPage from "@/pages/chat/TestChatPage";
 import UserChatListPage from "@/pages/mypage/components/UserChatListPage";
 import UserChatRoomPage from "@/pages/mypage/components/UserChatRoomPage";
 import MeetingCreatePage from "@/pages/meeting/MeetingCreatePage";
@@ -132,14 +131,6 @@ export const router = createBrowserRouter(
             element: (
                 <ProtectedRoute>
                     <ChatRoomPage />
-                </ProtectedRoute>
-            ),
-        },
-        {
-            path: "/test-chat",
-            element: (
-                <ProtectedRoute>
-                    <TestChatPage />
                 </ProtectedRoute>
             ),
         },

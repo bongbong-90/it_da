@@ -20,6 +20,12 @@ public class ChatRoom {
     @Column(name = "room_name", nullable = false, length = 200) // [cite: 254]
     private String roomName;
 
+    @Column(name = "meeting_id")
+    private Long meetingId;
+
+    @Column(name = "notice", columnDefinition = "TEXT")
+    private String notice;
+
     @Builder.Default
     @Column(name = "is_active") // [cite: 256]
     private boolean isActive = true;
@@ -41,4 +47,15 @@ public class ChatRoom {
 
     @Column(name = "location_name")
     private String locationName; // 장소명
+
+    public void updateMeetingId(Long meetingId) {
+        this.meetingId = meetingId;
+    }
+
+
+
+    // ✅ [추가] 공지사항 업데이트 편의 메서드
+    public void updateNotice(String notice) {
+        this.notice = notice;
+    }
 }
