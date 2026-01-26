@@ -26,21 +26,19 @@ class SVDModel:
         self.meeting_ids: Optional[List[int]] = None
 
     def load(self):
-        """모델 로드 (모임 유사도만)"""
-        if not self.model_path.exists():
-            raise FileNotFoundError(f"Model not found: {self.model_path}")
-
         with open(self.model_path, "rb") as f:
             model_data = pickle.load(f)
 
-        # 모임 간 유사도만 사용 (학습 시 계산됨)
-        self.meeting_similarity = model_data['meeting_similarity']
-        self.meeting_stats = model_data['meeting_stats']
-        self.meeting_ids = model_data['meeting_ids']
+        self.meeting_similarity = model_data["meeting_similarity"]
+        self.meeting_stats = model_data["meeting_stats"]
+        self.meeting_ids = [int(x) for x in model_data["meeting_ids"]]
 
-        print(f"✅ 협업 필터링 모델 로드 완료: {self.model_path}")
-        print(f"   모임: {len(self.meeting_ids):,}개")
-        print(f"   Spring Boot URL: {self.spring_boot_url}")
+        # dtype 통일
+        self.meeting_similarity.index = self.meeting_similarity.index.astype(int)
+        self.meeting_similarity.columns = self.meeting_similarity.columns.astype(int)
+        self.meeting_stats["meeting_id"] = self.meeting_stats["meeting_id"].astype(int)
+
+        self.global_mean = float(self.meeting_stats["avg_rating"].mean())
 
     async def _get_user_ratings(self, user_id: int) -> Dict[int, float]:
         """
@@ -70,71 +68,55 @@ class SVDModel:
             return {}
 
     async def recommend(self, user_id: int, top_n: int = 10) -> List[Tuple[int, float]]:
-        """
-        사용자에게 모임 추천 (실시간 DB 연동)
-
-        Args:
-            user_id: 사용자 ID
-            top_n: 추천할 모임 개수
-
-        Returns:
-            [(meeting_id, predicted_score), ...]
-        """
         if not self.is_loaded():
             raise ValueError("Model not loaded. Call load() first.")
 
-        # Spring Boot에서 사용자 평점 데이터 조회
         user_ratings_dict = await self._get_user_ratings(user_id)
-
-        # 평점 데이터가 없으면 인기 모임 추천
         if not user_ratings_dict:
             return self._recommend_popular(top_n)
 
-        # 추천 점수 계산
-        scores = {}
-        rated_meeting_ids = list(user_ratings_dict.keys())
+        # dtype 통일(안전)
+        rated_ids = [int(x) for x in user_ratings_dict.keys()]
 
-        for meeting_id in self.meeting_ids:
-            if meeting_id not in user_ratings_dict:  # 미평가 모임만
-                # 유사한 모임들 찾기
-                available_similarities = []
-                for rated_id in rated_meeting_ids:
-                    if rated_id in self.meeting_similarity.index:
-                        sim = self.meeting_similarity.loc[meeting_id, rated_id]
-                        available_similarities.append((rated_id, sim))
+        scores: Dict[int, float] = {}
 
-                if not available_similarities:
-                    continue
+        for mid in self.meeting_ids:
+            mid = int(mid)
+            if mid in user_ratings_dict:
+                continue
+            if self.meeting_similarity is None or mid not in self.meeting_similarity.index:
+                continue
 
-                # 상위 10개 유사 모임
-                available_similarities.sort(key=lambda x: x[1], reverse=True)
-                top_similar = available_similarities[:10]
+            sims = []
+            for rid in rated_ids:
+                rid = int(rid)
+                if rid in self.meeting_similarity.columns:
+                    sim = float(self.meeting_similarity.loc[mid, rid])
+                    sims.append((rid, sim))
 
-                sim_sum = sum(sim for _, sim in top_similar)
+            if not sims:
+                continue
 
-                if sim_sum > 0:
-                    weighted_sum = sum(
-                        sim * user_ratings_dict[rated_id]
-                        for rated_id, sim in top_similar
-                    )
-                    predicted_rating = weighted_sum / sim_sum
+            sims.sort(key=lambda x: x[1], reverse=True)
+            top_similar = sims[:10]
+            sim_sum = sum(sim for _, sim in top_similar)
 
-                    # 모임 평균 평점 반영
-                    meeting_avg = self.meeting_stats[
-                        self.meeting_stats['meeting_id'] == meeting_id
-                    ]['avg_rating'].values
+            if sim_sum <= 0:
+                continue
 
-                    if len(meeting_avg) > 0:
-                        predicted_rating = 0.7 * predicted_rating + 0.3 * meeting_avg[0]
+            weighted_sum = sum(sim * float(user_ratings_dict[rid]) for rid, sim in top_similar)
+            pred = weighted_sum / sim_sum
 
-                    scores[meeting_id] = predicted_rating
+            # meeting 평균 섞기
+            avg = self._meeting_avg_or_global(mid)
+            pred = 0.7 * pred + 0.3 * avg
 
-        # 상위 N개 추천
+            scores[mid] = float(np.clip(pred, 1.0, 5.0))
+
         if not scores:
             return self._recommend_popular(top_n)
 
-        top_recommendations = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:top_n]
-        return top_recommendations
+        return sorted(scores.items(), key=lambda x: x[1], reverse=True)[:top_n]
 
     def _recommend_popular(self, top_n: int) -> List[Tuple[int, float]]:
         """인기 모임 추천 (fallback)"""
@@ -230,12 +212,12 @@ class SVDModel:
         # 2) 유저 데이터 없으면 모임 평균으로 fallback
         if not user_ratings_dict:
             meeting_avg = self.meeting_stats[self.meeting_stats["meeting_id"] == meeting_id]["avg_rating"].values
-            return float(meeting_avg[0]) if len(meeting_avg) > 0 else 3.0
+            return float(self._meeting_avg_or_global(meeting_id))
 
         # 3) meeting_id가 모델에 없으면 평균 fallback
         if self.meeting_similarity is None or meeting_id not in self.meeting_similarity.index:
             meeting_avg = self.meeting_stats[self.meeting_stats["meeting_id"] == meeting_id]["avg_rating"].values
-            return float(meeting_avg[0]) if len(meeting_avg) > 0 else 3.0
+            return float(self._meeting_avg_or_global(meeting_id))
 
         # 4) 유사도 기반 예측
         rated_meeting_ids = list(user_ratings_dict.keys())
@@ -248,7 +230,7 @@ class SVDModel:
 
         if not sims:
             meeting_avg = self.meeting_stats[self.meeting_stats["meeting_id"] == meeting_id]["avg_rating"].values
-            return float(meeting_avg[0]) if len(meeting_avg) > 0 else 3.0
+            return float(self._meeting_avg_or_global(meeting_id))
 
         sims.sort(key=lambda x: x[1], reverse=True)
         top_similar = sims[:10]
@@ -256,7 +238,7 @@ class SVDModel:
 
         if sim_sum <= 0:
             meeting_avg = self.meeting_stats[self.meeting_stats["meeting_id"] == meeting_id]["avg_rating"].values
-            return float(meeting_avg[0]) if len(meeting_avg) > 0 else 3.0
+            return float(self._meeting_avg_or_global(meeting_id))
 
         weighted_sum = sum(sim * user_ratings_dict[rated_id] for rated_id, sim in top_similar)
         predicted = weighted_sum / sim_sum
@@ -273,4 +255,12 @@ class SVDModel:
         for mid in meeting_ids:
             out[int(mid)] = float(await self.predict_for_user_meeting(user_id, int(mid)))
         return out
+
+    def _meeting_avg_or_global(self, meeting_id: int) -> float:
+        if self.meeting_stats is not None:
+            v = self.meeting_stats.loc[self.meeting_stats["meeting_id"] == int(meeting_id), "avg_rating"].values
+            if len(v) > 0:
+                return float(v[0])
+        return float(getattr(self, "global_mean", 3.7))
+
 

@@ -10,6 +10,8 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from typing import List, Dict, Optional, Tuple
 
+import httpx
+
 import time
 import math
 
@@ -117,6 +119,29 @@ class PlaceRecommendRequest(BaseModel):
 # ========================================
 # Utility Functions
 # ========================================
+
+# ---- DB에서 가져온 meeting_avg_rating으로 SVD 보정 ----
+def blend_svd_with_db_avg(svd_r: float, meeting: dict, alpha_svd: float = 0.35) -> float:
+    """
+    svd_r: SVD 예측(1~5)
+    meeting: get_meetings_info_from_db()에서 만든 dict
+    alpha_svd: SVD 비중(낮출수록 DB 평균 영향 커짐)
+    """
+    db_avg = float(meeting.get("meeting_avg_rating") or 0.0)
+    # db_avg가 없으면 SVD만
+    if db_avg <= 0:
+        return float(clamp(svd_r, 1.0, 5.0))
+    r = alpha_svd * float(svd_r) + (1.0 - alpha_svd) * db_avg
+    return float(clamp(r, 1.0, 5.0))
+
+def level_from_score(score: int) -> str:
+    if score >= 88:
+        return "VERY_HIGH"
+    if score >= 80:
+        return "HIGH"
+    if score >= 65:
+        return "MEDIUM"
+    return "LOW"
 
 def clamp(v: float, lo: float, hi: float) -> float:
     return max(lo, min(hi, v))
@@ -808,115 +833,130 @@ async def parse_prompt(
 # ai_routes.py에 추가할 코드
 
 # ========================================
-# AI 매칭률 계산 (SVD 기반)
+# match-scores endpoint
 # ========================================
 @router.post("/match-scores")
 async def get_match_scores(req: MatchScoresRequest):
-    user_id = req.user_id
+    user_id = int(req.user_id)
     meeting_ids = [int(x) for x in req.meeting_ids if x is not None]
 
     if not meeting_ids:
         return {"success": True, "userId": user_id, "items": []}
 
-    if not model_loader.svd or not model_loader.svd.is_loaded():
-        return {
-            "success": True,
-            "userId": user_id,
-            "items": [{"meetingId": mid, "predictedRating": 3.7, "matchPercentage": 75, "matchLevel": "MEDIUM"} for mid
-                      in meeting_ids]
-        }
+    # 0) SVD 유무
+    has_svd = bool(model_loader.svd and model_loader.svd.is_loaded())
 
     # 1) SVD 예측
-    preds = await model_loader.svd.predict_for_user_meetings(user_id, meeting_ids)
-    print(f"🔍 SVD 예측값: {preds}")
+    if has_svd:
+        preds = await model_loader.svd.predict_for_user_meetings(user_id, meeting_ids)  # {mid: rating(1~5)}
+    else:
+        preds = {mid: 3.7 for mid in meeting_ids}
 
-    # 2) 실제 DB에서 데이터 가져오기
+    # 2) Spring Boot에서 정보 조회
     user_info = await get_user_info_from_db(user_id)
     meetings_info = await get_meetings_info_from_db(meeting_ids)
 
     if not meetings_info:
-        print("⚠️ 모임 정보를 가져올 수 없음")
         return {"success": True, "userId": user_id, "items": []}
 
-    # 3) 매칭률 계산
+    # 3) SVD + DB 평균 블렌딩
+    r_used_map: Dict[int, float] = {}
+    for mid in meeting_ids:
+        meeting = meetings_info.get(mid)
+        if not meeting:
+            continue
+        r = float(preds.get(mid, 3.7))
+        r_used_map[mid] = blend_svd_with_db_avg(r, meeting, alpha_svd=0.35)
+
+    if not r_used_map:
+        return {"success": True, "userId": user_id, "items": []}
+
+    # 4) 퍼센타일(midrank)
+    mids = list(r_used_map.keys())
+    r_list = [r_used_map[mid] for mid in mids]
+    sorted_r = sorted(r_list)
+    n = len(sorted_r)
+
+    def p_midrank(x: float) -> float:
+        lt = 0
+        eq = 0
+        for v in sorted_r:
+            if v < x:
+                lt += 1
+            elif v == x:
+                eq += 1
+        p = (lt + 0.5 * eq) / n
+        eps = 0.5 / n
+        if p < eps:
+            p = eps
+        if p > 1 - eps:
+            p = 1 - eps
+        return p
+
     items = []
 
-    for mid, rating in preds.items():
-        rating = float(rating)
+    for mid in mids:
         meeting = meetings_info.get(mid)
-
         if not meeting:
-            print(f"⚠️ 모임 {mid} 정보 없음")
             continue
 
-        # FeatureBuilder로 특징 계산
+        # ✅ FeatureBuilder: build_vector 사용 (너 코드랑 100% 일치)
         try:
-            features, _ = feature_builder.build_vector(user_info, meeting)
+            if model_loader.feature_builder:
+                feat, _vec = model_loader.feature_builder.build_vector(user_info, meeting)
+            else:
+                feat = {}
         except Exception as e:
-            print(f"❌ Feature 계산 실패 (meeting {mid}): {e}")
-            features = {}
+            print(f"⚠️ Feature 계산 실패 mid={mid}: {e}")
+            feat = {}
 
-        # 기본 점수
-        base_score = rating_to_match_score_sigmoid(rating, mid=3.55, temp=0.45)
+        # base score (퍼센타일 기반)
+        r_used = r_used_map[mid]
+        p = stretch(p_midrank(r_used), k=1.5)
+        base_score = match_from_percentile(p, floor=30, ceil=92, gamma=1.4)
 
-        # 보너스 계산
+        # bonus (너가 쓰던 키랑 FeatureBuilder 반환 키가 정확히 매칭됨)
         bonus = 0
 
-        # 거리
-        distance_km = features.get("distance_km", 10.0)
+        distance_km = float(feat.get("distance_km", 10.0))
         if distance_km <= 1:
-            bonus += 15
+            bonus += 12
         elif distance_km <= 3:
-            bonus += 10
+            bonus += 8
         elif distance_km <= 5:
-            bonus += 5
+            bonus += 4
         elif distance_km <= 10:
             bonus += 0
         elif distance_km <= 20:
-            bonus -= 10
+            bonus -= 8
         else:
-            bonus -= 20
+            bonus -= 15
 
-        # 관심사
-        interest_match = features.get("interest_match_score", 0.0)
-        bonus += int(interest_match * 20)
+        interest_match = float(feat.get("interest_match_score", 0.0))
+        bonus += int(interest_match * 16)  # 0~16
 
-        # 비용
-        cost_match = features.get("cost_match_score", 0.5)
-        bonus += int((cost_match - 0.5) * 20)
+        cost_match = float(feat.get("cost_match_score", 0.5))
+        bonus += int((cost_match - 0.5) * 16)  # -8~+8 정도
 
-        # 시간대
-        if features.get("time_match", 0.0) > 0.5:
-            bonus += 5
+        if float(feat.get("time_match", 0.0)) > 0.5:
+            bonus += 4
 
-        # 실내/실외
-        if features.get("location_type_match", 0.0) > 0.5:
-            bonus += 5
+        if float(feat.get("location_type_match", 0.0)) > 0.5:
+            bonus += 4
 
-        print(f"🎯 모임 {mid}: base={base_score}, bonus={bonus}, distance={distance_km:.2f}km")
-
-        # 최종 점수
-        final_score = base_score + bonus
-        final_score = max(30, min(95, int(final_score)))
-
-        if final_score >= 85:
-            level = "HIGH"
-        elif final_score >= 65:
-            level = "MEDIUM"
-        else:
-            level = "LOW"
+        final_score = int(clamp(base_score + bonus, 30, 95))
+        lvl = level_from_score(final_score)
 
         items.append({
-            "meetingId": mid,
-            "predictedRating": round(rating, 3),
-            "matchPercentage": final_score,
-            "matchLevel": level,
+            "meetingId": int(mid),
+            "predictedRating": round(float(preds.get(mid, 0.0)), 3),   # SVD 원래값
+            "blendedRating": round(float(r_used), 3),                 # DB avg 반영 보정값
+            "percentile": round(float(p), 3),
+            "matchPercentage": int(final_score),
+            "matchLevel": lvl,
         })
 
     items.sort(key=lambda x: x["matchPercentage"], reverse=True)
-
-    print(f"📊 최종 결과: {items}")
-
     return {"success": True, "userId": user_id, "items": items}
 
 # ===== 헬퍼 함수 =====
@@ -1068,6 +1108,37 @@ async def get_meetings_info_from_db(meeting_ids: list) -> dict:
         traceback.print_exc()
         return {}
 
+def percentile_midrank(values: List[float]) -> Dict[float, float]:
+    """
+    값 리스트에 대해 midrank 퍼센타일(0~1)을 만들어줌.
+    같은 값(tie)은 중간값 처리.
+    반환: {value: percentile}
+    """
+    if not values:
+        return {}
+    sorted_vals = sorted(values)
+    n = len(sorted_vals)
+
+    def p_of(x: float) -> float:
+        lt = 0
+        eq = 0
+        for v in sorted_vals:
+            if v < x:
+                lt += 1
+            elif v == x:
+                eq += 1
+        p = (lt + 0.5 * eq) / n  # midrank
+        # 끝단에서 너무 0/1 박히는 거 방지
+        eps = 0.5 / n
+        if p < eps:
+            p = eps
+        if p > 1 - eps:
+            p = 1 - eps
+        return p
+
+    # 값이 중복될 수 있어서, dict로 하면 마지막만 남음 -> (아래에서 개별값마다 호출해도 됨)
+    return {}  # 사용 안 함(개별 호출 방식으로 사용)
+
 def calculate_percentile(score: int, all_scores: list) -> int:
     """현재 점수가 전체 중 상위 몇%인지"""
     if not all_scores or len(all_scores) < 2:
@@ -1078,53 +1149,3 @@ def calculate_percentile(score: int, all_scores: list) -> int:
     percentile = int((rank / len(sorted_scores)) * 100)
 
     return 100 - percentile  # 상위 %로 변환
-
-
-    sorted_vals = sorted(values)
-
-    def percentile_midrank(x: float) -> float:
-        lt = 0
-        eq = 0
-        for v in sorted_vals:
-            if v < x:
-                lt += 1
-            elif v == x:
-                eq += 1
-        p = (lt + 0.5 * eq) / n
-        eps = 0.5 / n
-        if p < eps: p = eps
-        if p > 1 - eps: p = 1 - eps
-        return p
-
-    items = []
-    for mid, r in preds.items():
-        r = float(r)
-        p = percentile_midrank(r)
-
-        # stretch 약하게 (2.2 -> 1.5 정도)
-        p = max(0.0, min(1.0, 0.5 + (p - 0.5) * 1.5))
-
-        # gamma도 완만하게 (3.0 -> 1.4)
-        match_pct = match_from_percentile(p, floor=floor, ceil=ceil, gamma=1.4)
-
-        if match_pct >= 88:
-            lvl = "VERY_HIGH"
-        elif match_pct >= 80:
-            lvl = "HIGH"
-        elif match_pct >= 65:
-            lvl = "MEDIUM"
-        else:
-            lvl = "LOW"
-
-        items.append({
-            "meetingId": mid,
-            "predictedRating": round(r, 3),
-            "percentile": round(p, 3),
-            "matchPercentage": int(match_pct),
-            "matchLevel": lvl,
-        })
-
-    # 높은 순으로 정렬(프론트에서 그대로 쓰기 좋게)
-    items.sort(key=lambda x: x["matchPercentage"], reverse=True)
-    return {"success": True, "userId": user_id, "items": items}
-

@@ -47,7 +47,7 @@ class PlaceRecommendRequest(BaseModel):
     meeting_subcategory: str | None = None  # ⭐ 추가
     meeting_title: str  # ✅ 추가 (키워드 추출에 필요)
     meeting_description: Optional[str] = ""
-    participants: List[ParticipantLocation] = Field(..., min_items=2)
+    participants: List[ParticipantLocation] = Field(..., min_items=1)
 
     max_distance: float = 3.0  # km
     top_n: int = 3
