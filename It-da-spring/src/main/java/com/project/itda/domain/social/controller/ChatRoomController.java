@@ -52,12 +52,16 @@ public class ChatRoomController {
     }
     @PostMapping("/rooms/{roomId}/read")
     public ResponseEntity<Void> markAsRead(@PathVariable Long roomId) {
+        // 1. 세션에서 유저 정보 확인
         SessionUser user = (SessionUser) httpSession.getAttribute("user");
+
         if (user != null) {
+            // 2. 서비스 호출 (DB 업데이트 + WebSocket 'READ' 신호 전송)
             chatRoomService.updateLastReadAt(roomId, user.getEmail());
             return ResponseEntity.ok().build();
         }
-        // 세션 유저 정보를 가져와서 해당 방의 마지막 읽은 시간 업데이트 로직
+
+        // 로그인 안 된 경우 401 반환
         return ResponseEntity.status(401).build();
     }
     @GetMapping("/rooms/{roomId}/members")

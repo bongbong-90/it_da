@@ -50,6 +50,7 @@ import AdminNoticeFormPage from "@/pages/admin/NoticeFormPage";
 // 일반 사용자용 공지사항 페이지
 import NoticeListPage from "@/pages/notice/NoticeListPage";
 import NoticeDetailPage from "@/pages/notice/NoticeDetailPage";
+import UserReportDetailPage from "@/pages/report/UserReportDetailPage.tsx";
 
 export const router = createBrowserRouter(
   [
@@ -219,6 +220,15 @@ export const router = createBrowserRouter(
       path: "/notices/:noticeId",
       element: <NoticeDetailPage />,
     },
+      {
+          // 알림에서 연결될 경로
+          path: "/reports/history/:reportId",
+          element: (
+              <ProtectedRoute>
+                  <UserReportDetailPage />
+              </ProtectedRoute>
+          ),
+      },
     // 👇 관리자 라우트
     {
       path: "/admin",

@@ -20,6 +20,7 @@ import com.project.itda.domain.user.repository.UserFollowRepository;
 import com.project.itda.domain.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.messaging.simp.SimpMessageSendingOperations;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -43,6 +44,7 @@ public class ChatRoomService {
     private final UserFollowRepository userFollowRepository;
     private final ParticipationService participationService;
     private final NotificationService notificationService; // ✅ 알림 서비스 의존성 주입
+    private final SimpMessageSendingOperations messagingTemplate;
 
     // 실시간 접속자 관리
     private final Map<Long, Set<String>> connectedUsers = new ConcurrentHashMap<>();
@@ -150,14 +152,6 @@ public class ChatRoomService {
                             .build();
                 })
                 .collect(Collectors.toList());
-    }
-
-    @Transactional
-    public void updateLastReadAt(Long roomId, String email) {
-        Optional<ChatParticipant> participantOpt = chatParticipantRepository.findByChatRoomIdAndUserEmail(roomId, email);
-        if (participantOpt.isPresent()) {
-            participantOpt.get().updateLastReadAt(LocalDateTime.now());
-        }
     }
 
     @Transactional
@@ -314,5 +308,25 @@ public class ChatRoomService {
         if (room.getMeetingId() != null) {
             participationService.approveParticipationFromInvite(room.getMeetingId(), user);
         }
+    }
+    @Transactional
+    public void updateLastReadAt(Long roomId, String email) {
+        // 1. 기존 DB 업데이트 로직 (유지)
+        ChatParticipant participant =
+                chatParticipantRepository.findByChatRoomIdAndUserEmail(roomId, email)
+                        .orElseThrow(() -> new RuntimeException("참여자가 아닙니다."));
+
+        participant.updateLastReadAt(java.time.LocalDateTime.now());
+
+        // =================================================================
+        // ✅ [추가 2] 실시간 읽음 처리 신호(READ) 보내기
+        // =================================================================
+        Map<String, Object> readSignal = new HashMap<>();
+        readSignal.put("type", "READ");           // 프론트엔드가 식별할 타입
+        readSignal.put("roomId", roomId);         // 방 번호
+        readSignal.put("senderId", participant.getUser().getUserId()); // 읽은 사람 ID
+
+        // /topic/chat/room/{roomId} 를 구독 중인 모든 사람에게 쏴줍니다.
+        messagingTemplate.convertAndSend("/topic/room/" + roomId, readSignal);
     }
 }

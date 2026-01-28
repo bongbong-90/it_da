@@ -10,7 +10,7 @@ export interface ChatMessage {
     senderId: number;
     senderNickname: string;
     content: string;
-    type: "TALK" | "IMAGE" | "POLL" | "BILL" | "LOCATION" | "NOTICE";
+    type: "TALK" | "IMAGE" | "POLL" | "BILL" | "LOCATION" | "NOTICE" | "READ";
     sentAt: string;
     metadata?: Record<string, unknown> | null;
 }
@@ -36,36 +36,26 @@ class ChatApi {
         return response.data;
     }
 
-    connect(roomId: number, userEmail: string, onMessageReceived: (msg: ChatMessage) => void,onReadReceived?: (data: any) => void) {
+    connect(roomId: number, userEmail: string, onMessageReceived: (msg: any) => void) {
         const socket = new SockJS(`${API_BASE_URL}/ws`);
 
         this.client = new Client({
             webSocketFactory: () => socket,
-            debug: (str) => console.log(str),
+            // debug: (str) => console.log(str), // 디버깅 필요 시 주석 해제
             onConnect: () => {
                 console.log(`✅ 채팅방 ${roomId} 연결 성공`);
-                this.sendReadEvent(roomId, userEmail);
-                this.markAsRead(roomId, userEmail);
 
-                // 메시지 수신 구독
+                // 1. 입장 시 읽음 처리 (소켓 방식 - 필요 시 유지)
+                this.sendReadEvent(roomId, userEmail);
+
+                // 2. 메시지 수신 구독 (하나로 통합!)
+                // 백엔드가 "/topic/room/{roomId}" 로 TALK, READ, NOTICE 모두 보냄
                 this.client?.subscribe(`/topic/room/${roomId}`, (message: IMessage) => {
                     const data = JSON.parse(message.body);
 
-                    // ✅ BILL_UPDATE 또는 VOTE_UPDATE 메시지는 그대로 전달
-                    // useChatStore의 addMessage에서 알아서 처리함
+                    // ChatRoomPage.tsx의 첫 번째 콜백으로 데이터를 넘김
+                    // 거기서 if (type === 'READ') 로직이 작동함
                     onMessageReceived(data);
-                });
-
-                // ✅ 읽음 이벤트 구독 추가
-                // ✅ 읽음 이벤트 구독 - 콜백 추가
-                this.client?.subscribe(`/topic/room/${roomId}/read`, (message: IMessage) => {
-                    const readData = JSON.parse(message.body);
-                    console.log("📖 읽음 이벤트 수신:", readData);
-
-                    // ✅ 다른 사람이 읽었다는 신호를 받으면 모든 메시지를 읽음 처리
-                    if (onReadReceived) {
-                        onReadReceived(readData);
-                    }
                 });
             },
         });
@@ -101,14 +91,15 @@ class ChatApi {
         this.client?.deactivate();
     }
 
-    async markAsRead(roomId: number, email: string) {
+    // ✅ [수정됨] body 제거 (백엔드가 세션에서 유저 정보를 가져옴)
+    async markAsRead(roomId: number) {
         try {
+            // POST 요청이지만 body는 비워둡니다 (백엔드 Controller 수정 반영)
             await axios.post(`${API_BASE_URL}/api/social/chat/rooms/${roomId}/read`,
-                {email},
-                {withCredentials: true}
+                {},
+                { withCredentials: true }
             );
         } catch (error: any) {
-            // 실제 HTTP 상태 코드에 따라 로그 분기
             const status = error.response?.status;
             if (status === 401) {
                 console.error("🔒 인증 에러(401): 유효한 세션 쿠키가 없습니다.");
@@ -132,14 +123,7 @@ class ChatApi {
             });
         }
     }
-    subscribeToRead(roomId: number, onReadReceived: (data: any) => void) {
-        if (this.client?.connected) {
-            this.client.subscribe(`/topic/room/${roomId}/read`, (message: IMessage) => {
-                onReadReceived(JSON.parse(message.body));
-            });
-        }
-    }
-    async uploadImage(roomId: number, file: File): Promise<string> {
+        async uploadImage(roomId: number, file: File): Promise<string> {
         const formData = new FormData();
         formData.append('file', file); // 백엔드 @RequestParam("file")과 일치
 
@@ -171,6 +155,15 @@ class ChatApi {
             { targetUserId: userId }, // ✅ 수정됨: userId -> targetUserId
             { withCredentials: true }
         );
+    }
+    async reportUser(reportedId: number, reason: string, description: string = "") {
+        const response = await axios.post(`${API_BASE_URL}/api/reports`, {
+            reportedType: "USER", // 피신고 대상이 유저인 경우
+            reportedId: reportedId,
+            reason: reason,
+            description: description
+        }, { withCredentials: true });
+        return response.data;
     }
 }
 

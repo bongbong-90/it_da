@@ -616,4 +616,21 @@ public class NotificationService {
             log.error("입장 메시지 전송 실패: ", e);
         }
     }
+    @Transactional
+    public void notifyReportResult(User receiver, Long reportId, String message) {
+
+        String url = "/reports/history/" + reportId;
+
+        createNotification(
+                receiver,
+                NotificationType.REPORT_RESULT,
+                "신고 처리 안내", // 알림 제목
+                message,         // 알림 내용 (예: 신고가 처리되었습니다.)
+                url,       // 클릭 시 이동할 경로 (마이페이지 또는 신고 내역 페이지)
+                reportId,        // 관련 ID (신고 ID)
+                null,            // 보낸 사람 ID (시스템 알림이므로 null)
+                "관리자",         // 보낸 사람 이름
+                null             // 보낸 사람 프로필 이미지
+        );
+    }
 }

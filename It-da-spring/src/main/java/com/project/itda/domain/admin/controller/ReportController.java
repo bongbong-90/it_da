@@ -88,4 +88,18 @@ public class ReportController {
         List<ReportResponse> responses = reportService.getReportsByTarget(type, targetId);
         return ResponseEntity.ok(responses);
     }
+    @GetMapping("/my/{reportId}")
+    public ResponseEntity<ReportResponse> getMyReportDetail(
+            @PathVariable Long reportId,
+            HttpSession session) {
+
+        Long currentUserId = (Long) session.getAttribute("userId");
+        if (currentUserId == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        // 서비스에서 조회 (권한 체크 포함)
+        ReportResponse response = reportService.getMyReportDetail(reportId, currentUserId);
+        return ResponseEntity.ok(response);
+    }
 }

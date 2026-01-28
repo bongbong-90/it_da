@@ -24,5 +24,7 @@ public enum NotificationType {
     SYSTEM,               // 시스템 공지
 
     // ✅ 채팅방 초대 타입 추가
-    CHAT_INVITE
+    CHAT_INVITE,
+    REPORT_RESULT
+
 }

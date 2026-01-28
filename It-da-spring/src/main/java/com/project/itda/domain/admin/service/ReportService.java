@@ -86,4 +86,15 @@ public class ReportService {
                 .map(ReportResponse::from)
                 .collect(Collectors.toList());
     }
+    public ReportResponse getMyReportDetail(Long reportId, Long userId) {
+        Report report = reportRepository.findById(reportId)
+                .orElseThrow(() -> new EntityNotFoundException("신고 내역을 찾을 수 없습니다."));
+
+        // ✅ 보안 체크: 신고자가 본인이 맞는지 확인
+        if (!report.getReporterId().equals(userId)) {
+            throw new IllegalArgumentException("본인의 신고 내역만 확인할 수 있습니다.");
+        }
+
+        return ReportResponse.from(report);
+    }
 }

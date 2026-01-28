@@ -272,4 +272,9 @@ public class MeetingController {
 
         return ResponseEntity.ok(stats);
     }
+    @PatchMapping("/{meetingId}/location")
+    public ResponseEntity<Void> updateLocation(@PathVariable Long meetingId, @RequestBody MeetingLocationUpdateDto dto) {
+        meetingService.updateMeetingLocation(meetingId, dto);
+        return ResponseEntity.ok().build();
+    }
 }

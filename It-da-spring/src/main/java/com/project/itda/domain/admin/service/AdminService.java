@@ -11,6 +11,7 @@ import com.project.itda.domain.admin.repository.AnnouncementRepository;
 import com.project.itda.domain.admin.repository.InquiryRepository;
 import com.project.itda.domain.admin.repository.ReportRepository;
 import com.project.itda.domain.meeting.repository.MeetingRepository;
+import com.project.itda.domain.notification.service.NotificationService;
 import com.project.itda.domain.user.repository.UserRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -57,6 +58,7 @@ public class AdminService {
     private final UserRepository userRepository;
     private final MeetingRepository meetingRepository;
     private final InquiryRepository inquiryRepository;
+    private final NotificationService notificationService;
 
 
 
@@ -510,5 +512,23 @@ public class AdminService {
         report.setStatus(request.getStatus());
         report.setResolvedBy(admin);
         report.setResolvedAt(LocalDateTime.now());
+        report.setAdminNote(request.getAdminNote());
+
+        if (request.getStatus() == ReportStatus.RESOLVED || request.getStatus() == ReportStatus.REJECTED) {
+
+            report.setResolvedAt(LocalDateTime.now()); // 처리 시간 기록
+
+            // ✅ 신고자 정보 조회 (ID -> Entity)
+            User reporter = userRepository.findById(report.getReporterId())
+                    .orElseThrow(() -> new EntityNotFoundException("신고자를 찾을 수 없습니다. (ID: " + report.getReporterId() + ")"));
+
+            // ✅ 알림 메시지 생성
+            String message = (request.getStatus() == ReportStatus.RESOLVED)
+                    ? "접수하신 신고가 정상적으로 처리되었습니다."
+                    : "접수하신 신고가 검토 결과 반려되었습니다.";
+
+            // ✅ 알림 서비스 호출
+            notificationService.notifyReportResult(reporter, reportId, message);
+        }
     }
 }

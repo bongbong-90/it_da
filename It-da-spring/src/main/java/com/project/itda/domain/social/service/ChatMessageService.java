@@ -21,10 +21,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -105,14 +102,7 @@ public class ChatMessageService {
         }).collect(Collectors.toList());
     }
 
-    @Transactional
-    public void updateLastReadAt(Long roomId, String email) {
-        com.project.itda.domain.social.entity.ChatParticipant participant =
-                chatParticipantRepository.findByChatRoomIdAndUserEmail(roomId, email)
-                        .orElseThrow(() -> new RuntimeException("참여자가 아닙니다."));
 
-        participant.updateLastReadAt(java.time.LocalDateTime.now());
-    }
 
     @Transactional
     public ChatMessage saveMessageWithMetadata(String email, Long chatRoomId, String content, MessageType type, Map<String, Object> metadata, int unreadCount) {
