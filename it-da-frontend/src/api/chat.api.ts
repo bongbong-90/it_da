@@ -103,13 +103,22 @@ class ChatApi {
 
     async markAsRead(roomId: number, email: string) {
         try {
-            // 백엔드에 해당 컨트롤러 매핑이 생길 때까지 에러를 잡아서 처리합니다.
-            await axios.post(`${API_BASE_URL}/api/social/chat/rooms/${roomId}/read`, { email }, { withCredentials: true });
-        } catch {
-            console.warn("⚠️ 읽음 처리 API가 아직 서버에 구현되지 않았습니다.");
+            await axios.post(`${API_BASE_URL}/api/social/chat/rooms/${roomId}/read`,
+                {email},
+                {withCredentials: true}
+            );
+        } catch (error: any) {
+            // 실제 HTTP 상태 코드에 따라 로그 분기
+            const status = error.response?.status;
+            if (status === 401) {
+                console.error("🔒 인증 에러(401): 유효한 세션 쿠키가 없습니다.");
+            } else if (status === 404) {
+                console.warn("⚠️ 404 에러: 읽음 처리 API 경로를 찾을 수 없습니다.");
+            } else {
+                console.warn(`⚠️ API 에러(${status}):`, error.message);
+            }
         }
     }
-
     async getRoomMembers(roomId: number) {
         // ✅ 404 에러 직접 해결 지점: 백엔드 포트 8080 및 정확한 경로 명시
         const response = await axios.get(`${API_BASE_URL}/api/social/chat/rooms/${roomId}/members`, { withCredentials: true });
