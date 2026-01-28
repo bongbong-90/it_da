@@ -94,6 +94,8 @@ const ChatRoomPage: React.FC = () => {
   const [isPlaceModalOpen, setIsPlaceModalOpen] = useState(false);
   const [selectedMapPlace, setSelectedMapPlace] = useState<any>(null);
   const [isMapModalOpen, setIsMapModalOpen] = useState(false);
+  const isMounted = useRef(false);
+  const [isChoiceModalOpen, setIsChoiceModalOpen] = useState(false);
 
     useEffect(() => {
         if (roomId) {
@@ -148,15 +150,22 @@ const ChatRoomPage: React.FC = () => {
         }
     };
 
-
+    const handleAIButtonClick = () => {
+        // 이전에 저장된 추천 목록이 있다면 -> 선택 모달 띄우기
+        if (recommendedPlaces.length > 0) {
+            setIsPlaceModalOpen(false);
+            setIsChoiceModalOpen(true);
+        } else {
+            // 없으면 -> 바로 AI API 호출
+            fetchNewRecommendations();
+        }
+    };
 
   // 1️⃣ [수정됨] showAIRecommendation 함수를 return 문 밖(컴포넌트 로직 부분)으로 이동
-  const showAIRecommendation = async () => {
-      if (recommendedPlaces.length > 0) {
-          setIsPlaceModalOpen(true);
-          toast.success("이전 추천 리스트를 불러왔습니다.");
-          return;
-      }
+  const fetchNewRecommendations = async () => {
+      setIsChoiceModalOpen(false);
+      setIsPlaceModalOpen(false);
+
       try {
           toast.loading("🤖 AI가 최적의 장소를 분석 중입니다...", { id: "ai-loading" });
 
@@ -356,6 +365,16 @@ const ChatRoomPage: React.FC = () => {
       if (!roomId || !currentUser) return;
       console.log("🔍 [ChatRoom] Initializing with RoomID:", roomId);
 
+        if (!isMounted.current) {
+            try {
+                await chatApi.markAsRead(Number(roomId));
+                markAllAsRead();
+            } catch (e) {
+                console.warn("⚠️ 읽음 처리 실패:", e);
+            }
+            isMounted.current = true;
+        }
+
       try {
         try {
           const history = await chatApi.getChatMessages(Number(roomId), 0, 50);
@@ -373,13 +392,6 @@ const ChatRoomPage: React.FC = () => {
           setMessages(validatedHistory);
         } catch (e) {
           console.error("❌ 메시지 로드 실패:", e);
-        }
-
-        try {
-          await chatApi.markAsRead(Number(roomId), currentUser.email);
-          markAllAsRead();
-        } catch (e) {
-          console.warn("⚠️ 읽음 처리 실패 (API 확인 필요):", e);
         }
 
         try {
@@ -454,6 +466,26 @@ const ChatRoomPage: React.FC = () => {
         (newMsg: any) => {
           if (!isSubscribed) return;
 
+            if (newMsg.type === "READ") {
+                console.log("📖 읽음 신호 수신:", newMsg);
+
+                // 내가 읽은 게 아닐 때만 숫자 감소
+                if (currentUser && newMsg.email !== currentUser.email) {
+                    // 전역 배지 감소 (선택사항)
+                    decrementUnreadCount();
+
+                    // 현재 화면 메시지들의 카운트 갱신
+                    const currentMessages = useChatStore.getState().messages;
+                    const updatedMessages = currentMessages.map((msg) => ({
+                        ...msg,
+                        // 0보다 클 때만 -1
+                        unreadCount: msg.unreadCount > 0 ? msg.unreadCount - 1 : 0,
+                    }));
+                    setMessages(updatedMessages);
+                }
+                return; // 중요: 아래의 addMessage가 실행되지 않도록 리턴
+            }
+
           if (newMsg.type === "BILL_UPDATE") {
             const targetId = Number(
               newMsg.targetMessageId || newMsg.metadata.messageId,
@@ -472,6 +504,14 @@ const ChatRoomPage: React.FC = () => {
           if (newMsg.type === "NOTICE") {
               fetchRoomMembers();
           }
+
+          if (newMsg.type === "TALK" || newMsg.type === "IMAGE" || newMsg.type === "LOCATION" || newMsg.type === "VOTE") {
+              if (currentUser && Number(newMsg.senderId) !== Number(currentUser.userId)) {
+                    // 약간의 딜레이를 주어 UI가 먼저 그려지게 해도 좋고, 바로 호출해도 됩니다.
+                    chatApi.markAsRead(Number(roomId));
+              }
+          }
+
           const serverCount = Number(newMsg.unreadCount ?? 0);
 
           const validatedMsg: ChatMessage = {
@@ -488,13 +528,7 @@ const ChatRoomPage: React.FC = () => {
           };
 
           addMessage(validatedMsg);
-        },
-        (readData: any) => {
-          console.log("📖 읽음 이벤트 수신:", readData);
-          if (currentUser && readData.email !== currentUser.email) {
-            decrementUnreadCount();
-          }
-        },
+        }
       );
     }
     return () => {
@@ -774,7 +808,7 @@ const ChatRoomPage: React.FC = () => {
           </span>
         </div>
         <button
-          onClick={showAIRecommendation}
+          onClick={handleAIButtonClick}
           style={{
             backgroundColor: "rgba(255,255,255,0.2)",
             border: "1px solid rgba(255,255,255,0.4)",
@@ -1008,6 +1042,60 @@ const ChatRoomPage: React.FC = () => {
           onSubmit={handleReportSubmit}
         />
       )}
+        {isChoiceModalOpen && (
+            <div className="modal-overlay" onClick={() => setIsChoiceModalOpen(false)}>
+                <div className="modal-content" style={{ maxWidth: '350px', textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+                    <h3 style={{ marginBottom: '15px' }}>🤖 AI 장소 추천</h3>
+                    <p style={{ color: '#666', marginBottom: '25px' }}>
+                        이전에 추천받은 장소 목록이 있습니다.<br />
+                        어떻게 하시겠습니까?
+                    </p>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        <button
+                            onClick={() => {
+                                setIsChoiceModalOpen(false);
+                                setIsPlaceModalOpen(true); // 이전 목록 모달 열기
+                                toast.success("이전 추천 리스트를 불러왔습니다.");
+                            }}
+                            style={{
+                                padding: '12px',
+                                borderRadius: '8px',
+                                border: '1px solid #ddd',
+                                background: 'white',
+                                cursor: 'pointer',
+                                fontWeight: 'bold',
+                                color: '#333'
+                            }}
+                        >
+                            📂 이전 목록 보기
+                        </button>
+
+                        <button
+                            onClick={fetchNewRecommendations} // 새로 API 호출
+                            style={{
+                                padding: '12px',
+                                borderRadius: '8px',
+                                border: 'none',
+                                background: 'linear-gradient(90deg, #6a11cb 0%, #2575fc 100%)',
+                                cursor: 'pointer',
+                                fontWeight: 'bold',
+                                color: 'white'
+                            }}
+                        >
+                            ✨ 새로 추천 받기
+                        </button>
+                    </div>
+
+                    <button
+                        onClick={() => setIsChoiceModalOpen(false)}
+                        style={{ marginTop: '15px', background: 'none', border: 'none', color: '#999', cursor: 'pointer', textDecoration: 'underline' }}
+                    >
+                        취소
+                    </button>
+                </div>
+            </div>
+        )}
 
         {/* ✅ 지도 상세 확인 모달 */}
         {isMapModalOpen && selectedMapPlace && (

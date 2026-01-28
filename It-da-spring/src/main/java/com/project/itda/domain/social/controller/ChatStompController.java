@@ -34,10 +34,9 @@ public class ChatStompController {
         User sender = userRepository.findByEmail(email).orElseThrow();
 
         // 1. 읽음 시간 및 온라인 카운트 로직 (기존 유지)
-        chatRoomService.updateLastReadAt(roomId, email);
-        int onlineCount = chatRoomService.getConnectedCount(roomId);
+
         long totalParticipants = chatParticipantRepository.countByChatRoomId(roomId);
-        int initialUnreadCount = (int) Math.max(0, totalParticipants - onlineCount);
+        int initialUnreadCount = (int) Math.max(0, totalParticipants - 1);
 
         String finalNickname = (sender.getNickname() != null && !sender.getNickname().trim().isEmpty())
                 ? sender.getNickname()
@@ -62,6 +61,8 @@ public class ChatStompController {
             savedMsg = chatMessageService.saveMessage(email, roomId, (String) message.get("content"), messageType, initialUnreadCount);
         }
 
+        chatRoomService.updateLastReadAt(roomId, email);
+
         // ✅ 2. 데이터 타입에 맞게 값 설정 (String.valueOf 제거 가능)
         message.put("messageId", savedMsg.getId());
         message.put("senderNickname", finalNickname);
@@ -82,7 +83,5 @@ public class ChatStompController {
 
         chatRoomService.userJoined(roomId, email);
 
-        chatRoomService.updateLastReadAt(roomId, email);
-        messagingTemplate.convertAndSend("/topic/room/" + roomId + "/read", payload);
     }
 }

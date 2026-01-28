@@ -1,10 +1,7 @@
 package com.project.itda.domain.meeting.controller;
 
 import com.project.itda.domain.auth.dto.SessionUser;
-import com.project.itda.domain.meeting.dto.request.BatchRequestDto;
-import com.project.itda.domain.meeting.dto.request.MeetingCreateRequest;
-import com.project.itda.domain.meeting.dto.request.MeetingUpdateRequest;
-import com.project.itda.domain.meeting.dto.request.MeetingSearchRequest;
+import com.project.itda.domain.meeting.dto.request.*;
 import com.project.itda.domain.meeting.dto.response.MeetingSearchResponse;
 import com.project.itda.domain.meeting.dto.response.MeetingDetailResponse;
 import com.project.itda.domain.meeting.dto.response.MeetingResponse;
@@ -263,5 +260,10 @@ public class MeetingController {
         Map<String, Object> stats = meetingService.getCategoryDetailStats();
 
         return ResponseEntity.ok(stats);
+    }
+    @PatchMapping("/{meetingId}/location")
+    public ResponseEntity<Void> updateLocation(@PathVariable Long meetingId, @RequestBody MeetingLocationUpdateDto dto) {
+        meetingService.updateMeetingLocation(meetingId, dto);
+        return ResponseEntity.ok().build();
     }
 }
