@@ -1,0 +1,39 @@
+{
+  "name": "IT-DA - AI 모임 매칭 플랫폼",
+  "short_name": "IT-DA",
+  "description": "AI 기반 취향 맞춤 모임 추천 서비스",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#4F46E5",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["social", "lifestyle"],
+  "shortcuts": [
+    {
+      "name": "새 모임 찾기",
+      "short_name": "모임 찾기",
+      "description": "AI 추천으로 새로운 모임 찾기",
+      "url": "/meetings",
+      "icons": [
+        {
+          "src": "/icon-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ]
+}

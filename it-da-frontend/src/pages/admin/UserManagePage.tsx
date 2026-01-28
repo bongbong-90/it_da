@@ -1,25 +1,35 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getUserList, updateUserStatus, getUserDetail } from '../../api/admin.api';  // ✅ getUserDetail 추가
+import { getUserList, updateUserStatus } from '../../api/admin.api';
 import type { UserListResponse, UserManageResponse } from '../../types/admin.types';
 
 const UserManagePage: React.FC = () => {
     const navigate = useNavigate();
-    const [data, setData] = useState<UserListResponse | null>(null);
+    const [allUsers, setAllUsers] = useState<UserManageResponse[]>([]);
+    const [filteredUsers, setFilteredUsers] = useState<UserManageResponse[]>([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
+    const [statusFilter, setStatusFilter] = useState('');
     const [page, setPage] = useState(0);
-
+    const [totalPages, setTotalPages] = useState(0);
+    const [totalElements, setTotalElements] = useState(0);
 
     useEffect(() => {
         fetchUsers();
     }, [page]);
 
+    // ✅ 검색 & 필터링 로직
+    useEffect(() => {
+        applyFilters();
+    }, [search, statusFilter, allUsers]);
+
     const fetchUsers = async () => {
         setLoading(true);
         try {
-            const response = await getUserList(page, 10, search);
-            setData(response);
+            const response = await getUserList(page, 10, '');
+            setAllUsers(response.users);
+            setTotalPages(response.totalPages);
+            setTotalElements(response.totalElements);
         } catch (error) {
             console.error('회원 목록 조회 실패:', error);
             alert('회원 목록을 불러오는데 실패했습니다.');
@@ -28,9 +38,31 @@ const UserManagePage: React.FC = () => {
         }
     };
 
+    // ✅ 필터링 적용 함수
+    const applyFilters = () => {
+        let filtered = [...allUsers];
+
+        // 상태 필터
+        if (statusFilter) {
+            filtered = filtered.filter(user => user.status === statusFilter);
+        }
+
+        // 검색 필터 (ID, 이름, 이메일로 검색)
+        if (search.trim()) {
+            const searchLower = search.toLowerCase().trim();
+            filtered = filtered.filter(user =>
+                user.userId.toString().includes(searchLower) ||
+                user.username.toLowerCase().includes(searchLower) ||
+                user.email.toLowerCase().includes(searchLower) ||
+                (user.nickname && user.nickname.toLowerCase().includes(searchLower))
+            );
+        }
+
+        setFilteredUsers(filtered);
+    };
+
     const handleSearch = () => {
-        setPage(0);
-        fetchUsers();
+        applyFilters();
     };
 
     const handleStatusChange = async (userId: number, status: string) => {
@@ -57,6 +89,15 @@ const UserManagePage: React.FC = () => {
         return new Date(dateString).toLocaleDateString('ko-KR');
     };
 
+    const getStatusText = (status: string): string => {
+        const statusMap: any = {
+            ACTIVE: '활성',
+            SUSPENDED: '정지',
+            DELETED: '삭제'
+        };
+        return statusMap[status] || status;
+    };
+
     const getStatusBadge = (status: string) => {
         const statusConfig: any = {
             ACTIVE: { bg: '#d1fae5', color: '#065f46', text: '활성' },
@@ -79,13 +120,17 @@ const UserManagePage: React.FC = () => {
         );
     };
 
-    if (loading && !data) {
+    if (loading && allUsers.length === 0) {
         return (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '16rem' }}>
                 <div style={{ fontSize: '1.25rem' }}>로딩 중...</div>
             </div>
         );
     }
+
+    // ✅ 표시할 데이터 결정
+    const displayUsers = filteredUsers;
+    const displayTotal = filteredUsers.length;
 
     return (
         <div>
@@ -104,7 +149,7 @@ const UserManagePage: React.FC = () => {
                 <div style={{ display: 'flex', gap: '1rem' }}>
                     <input
                         type="text"
-                        placeholder="이름 또는 이메일 검색"
+                        placeholder="이름, 이메일, ID 검색"
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                         onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
@@ -130,6 +175,25 @@ const UserManagePage: React.FC = () => {
                     >
                         검색
                     </button>
+                    {(search || statusFilter) && (
+                        <button
+                            onClick={() => {
+                                setSearch('');
+                                setStatusFilter('');
+                            }}
+                            style={{
+                                padding: '0.5rem 1rem',
+                                backgroundColor: '#6b7280',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '0.375rem',
+                                cursor: 'pointer',
+                                fontSize: '0.875rem'
+                            }}
+                        >
+                            초기화
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -138,8 +202,31 @@ const UserManagePage: React.FC = () => {
                 <div style={{ padding: '1.5rem', borderBottom: '1px solid #e5e7eb' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <h3 style={{ fontSize: '1.125rem', fontWeight: '600' }}>
-                            전체 회원 ({data?.totalElements || 0}명)
+                            {statusFilter ? `${getStatusText(statusFilter)} 회원` : '전체 회원'} ({displayTotal}명)
+                            {search && <span style={{ fontSize: '0.875rem', color: '#6b7280', marginLeft: '0.5rem' }}>
+                                검색: "{search}"
+                            </span>}
                         </h3>
+                        {/* ✅ 상태 필터 드롭다운 추가 */}
+                        <select
+                            value={statusFilter}
+                            onChange={(e) => {
+                                setStatusFilter(e.target.value);
+                                setPage(0);
+                            }}
+                            style={{
+                                padding: '0.5rem 1rem',
+                                border: '1px solid #d1d5db',
+                                borderRadius: '0.375rem',
+                                fontSize: '0.875rem',
+                                cursor: 'pointer'
+                            }}
+                        >
+                            <option value="">전체</option>
+                            <option value="ACTIVE">활성</option>
+                            <option value="SUSPENDED">정지</option>
+                            <option value="DELETED">삭제</option>
+                        </select>
                     </div>
                 </div>
 
@@ -159,12 +246,12 @@ const UserManagePage: React.FC = () => {
                         </tr>
                         </thead>
                         <tbody>
-                        {data?.users.map((user) => (
+                        {displayUsers.map((user) => (
                             <tr key={user.userId}
                                 onClick={() => handleUserClick(user.userId)}
                                 style={{ borderTop: '1px solid #e5e7eb',
-                                         cursor: 'pointer',
-                                         transition: 'background-color 0.2s'
+                                    cursor: 'pointer',
+                                    transition: 'background-color 0.2s'
                                 }}
                                 onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f9fafb'}
                                 onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'white'}
@@ -210,6 +297,17 @@ const UserManagePage: React.FC = () => {
                     </table>
                 </div>
 
+                {displayUsers.length === 0 && (
+                    <div style={{
+                        textAlign: 'center',
+                        padding: '3rem',
+                        color: '#6b7280',
+                        fontSize: '0.875rem'
+                    }}>
+                        {search || statusFilter ? '검색 결과가 없습니다.' : '회원이 없습니다.'}
+                    </div>
+                )}
+
                 {/* 페이지네이션 */}
                 <div style={{
                     padding: '1.5rem',
@@ -232,17 +330,17 @@ const UserManagePage: React.FC = () => {
                         이전
                     </button>
                     <span style={{ padding: '0.5rem 1rem', display: 'flex', alignItems: 'center' }}>
-                        {page + 1} / {data?.totalPages || 1}
+                        {page + 1} / {totalPages || 1}
                     </span>
                     <button
-                        onClick={() => setPage(Math.min((data?.totalPages || 1) - 1, page + 1))}
-                        disabled={page >= (data?.totalPages || 1) - 1}
+                        onClick={() => setPage(Math.min((totalPages || 1) - 1, page + 1))}
+                        disabled={page >= (totalPages || 1) - 1}
                         style={{
                             padding: '0.5rem 1rem',
                             border: '1px solid #d1d5db',
                             borderRadius: '0.375rem',
-                            backgroundColor: page >= (data?.totalPages || 1) - 1 ? '#f3f4f6' : 'white',
-                            cursor: page >= (data?.totalPages || 1) - 1 ? 'not-allowed' : 'pointer'
+                            backgroundColor: page >= (totalPages || 1) - 1 ? '#f3f4f6' : 'white',
+                            cursor: page >= (totalPages || 1) - 1 ? 'not-allowed' : 'pointer'
                         }}
                     >
                         다음

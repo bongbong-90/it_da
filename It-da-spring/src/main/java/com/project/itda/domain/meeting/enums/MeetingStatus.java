@@ -23,7 +23,12 @@ public enum MeetingStatus {
     /**
      * 완료됨
      */
-    COMPLETED("완료됨");
+    COMPLETED("완료됨"),
+
+    /**
+     * 삭제됨 (관리자용)
+     */
+    DELETED("삭제됨");
 
     private final String description;
 

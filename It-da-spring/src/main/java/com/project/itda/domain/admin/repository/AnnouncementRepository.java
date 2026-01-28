@@ -28,8 +28,10 @@ public interface AnnouncementRepository extends JpaRepository<Announcement, Long
             @Param("status") AnnouncementStatus status
     );
 
-    // 페이징 + Fetch Join
-    @Query(value = "SELECT a FROM Announcement a JOIN FETCH a.author WHERE a.status = :status",
+    // 페이징 + Fetch Join + (고정 우선, 최신순 정렬)
+    @Query(value = "SELECT a FROM Announcement a JOIN FETCH a.author " +
+            "WHERE a.status = :status " +
+            "ORDER BY a.isPinned DESC, a.publishedAt DESC, a.createdAt DESC",
             countQuery = "SELECT COUNT(a) FROM Announcement a WHERE a.status = :status")
     Page<Announcement> findAllByStatusWithAuthorPaged(@Param("status") AnnouncementStatus status, Pageable pageable);
 

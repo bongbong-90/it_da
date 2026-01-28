@@ -55,5 +55,6 @@ public class SessionAuthenticationFilter extends OncePerRequestFilter {
         // ✅ 웹소켓 경로 추가!
         return path.startsWith("/uploads/")
                 || path.startsWith("/ws/")
-                || path.startsWith("/ws-stomp/");
+                || path.startsWith("/ws-stomp/")
+                || path.startsWith("/api/public/");
     }}

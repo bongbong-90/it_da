@@ -1,7 +1,10 @@
 package com.project.itda.domain.meeting.controller;
 
 import com.project.itda.domain.auth.dto.SessionUser;
-import com.project.itda.domain.meeting.dto.request.*;
+import com.project.itda.domain.meeting.dto.request.BatchRequestDto;
+import com.project.itda.domain.meeting.dto.request.MeetingCreateRequest;
+import com.project.itda.domain.meeting.dto.request.MeetingUpdateRequest;
+import com.project.itda.domain.meeting.dto.request.MeetingSearchRequest;
 import com.project.itda.domain.meeting.dto.response.MeetingSearchResponse;
 import com.project.itda.domain.meeting.dto.response.MeetingDetailResponse;
 import com.project.itda.domain.meeting.dto.response.MeetingResponse;
@@ -218,15 +221,47 @@ public class MeetingController {
         Map<String, Object> result = meetingService.getMeetingsByIds(meetingIds);
         return ResponseEntity.ok(result);
     }
-    @PatchMapping("/{meetingId}/location")
-    public ResponseEntity<?> updateLocation(
-            @PathVariable Long meetingId,
-            @RequestBody LocationUpdateRequest request) {
+// ========================================
+// MeetingController.java에 아래 메서드 추가!
+// (클래스 맨 아래, 마지막 } 전에)
+// ========================================
 
-        // 서비스 로직: DB의 meetings 테이블 업데이트
-        meetingService.updateLocation(meetingId, request);
+    /**
+     * ✅ 카테고리별 모임 개수 조회
+     * GET /api/meetings/category-stats
+     */
+    @Operation(
+            summary = "카테고리별 모임 통계",
+            description = "각 카테고리별 모임 개수를 반환합니다"
+    )
+    @GetMapping("/category-stats")
+    public ResponseEntity<Map<String, Long>> getCategoryStats() {
+        log.info("📍 GET /api/meetings/category-stats");
 
-        return ResponseEntity.ok().body(Map.of("success", true));
+        Map<String, Long> stats = meetingService.getCategoryStats();
+
+        return ResponseEntity.ok(stats);
     }
+    // ========================================
+// MeetingController.java에 아래 메서드 추가!
+// (클래스 맨 아래, 마지막 } 전에)
+// ========================================
 
+    /**
+     * ✅ 카테고리별 모임 개수 조회
+     * GET /api/meetings/category-stats
+     */
+    @Operation(
+            summary = "카테고리별 모임 통계",
+            description = "각 카테고리별 모임 개수를 반환합니다"
+    )
+    
+    @GetMapping("/category-stats/detail")
+    public ResponseEntity<Map<String, Object>> getCategoryDetailStats() {
+        log.info("📍 GET /api/meetings/category-stats/detail");
+
+        Map<String, Object> stats = meetingService.getCategoryDetailStats();
+
+        return ResponseEntity.ok(stats);
+    }
 }

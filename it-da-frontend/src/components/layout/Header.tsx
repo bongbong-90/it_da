@@ -68,6 +68,9 @@ const Header = () => {
                     <Link to="/meetings/create" className="nav-item">
                         모임 만들기
                     </Link>
+                    <Link to="/notices" className="nav-item">
+                        공지사항
+                    </Link>
                 </nav>
 
                 <div className="header-right">

@@ -66,6 +66,6 @@ public class Inquiry {
         this.answer = answer;
         this.answeredAt = LocalDateTime.now();
         this.answeredBy = adminId;
-        this.status = InquiryStatus.COMPLETED;
+        this.status = InquiryStatus.ANSWERED;
     }
 }

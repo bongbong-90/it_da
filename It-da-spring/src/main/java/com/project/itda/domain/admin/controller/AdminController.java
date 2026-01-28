@@ -1,8 +1,7 @@
 package com.project.itda.domain.admin.controller;
 
-import com.project.itda.domain.admin.dto.response.AdminDashboardResponse;
-import com.project.itda.domain.admin.dto.response.RecentMeetingResponse;
-import com.project.itda.domain.admin.dto.response.RecentUserResponse;
+import com.project.itda.domain.admin.dto.request.*;
+import com.project.itda.domain.admin.dto.response.*;
 import com.project.itda.domain.admin.entity.AdminUser;
 import com.project.itda.domain.admin.repository.AdminUserRepository;
 import com.project.itda.domain.admin.service.AdminService;
@@ -12,12 +11,14 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import com.project.itda.domain.admin.dto.request.UserStatusRequest;
-import com.project.itda.domain.admin.dto.response.UserListResponse;
-import com.project.itda.domain.admin.dto.response.UserManageResponse;
-import com.project.itda.domain.admin.dto.request.MeetingStatusRequest;
-import com.project.itda.domain.admin.dto.response.MeetingListResponse;
-import com.project.itda.domain.admin.dto.response.MeetingManageResponse;
+import com.project.itda.domain.admin.dto.response.InquiryListResponse;
+import com.project.itda.domain.admin.dto.response.InquiryDetailResponse;
+import com.project.itda.domain.admin.dto.response.AnnouncementResponse;
+import com.project.itda.domain.admin.dto.response.AnnouncementListResponse;
+import jakarta.validation.Valid;
+import com.project.itda.domain.admin.dto.request.ReportStatusRequest;
+import com.project.itda.domain.admin.dto.response.ReportResponse;
+import com.project.itda.domain.admin.dto.response.ReportListResponse;
 
 import java.util.HashMap;
 import java.util.List;
@@ -104,8 +105,8 @@ public class AdminController {
 
 
         AdminDashboardResponse dashboard = adminService.getDashboard(adminId);
-        List<RecentUserResponse> recentUsers = adminService.getRecentUsers(5);
-        List<RecentMeetingResponse> recentMeetings = adminService.getRecentMeetings(5);
+        List<RecentUserResponse> recentUsers = adminService.getRecentUsers(10);
+        List<RecentMeetingResponse> recentMeetings = adminService.getRecentMeetings(10);
 
         Map<String, Object> response = new HashMap<>();
         response.put("dashboard", dashboard);
@@ -225,5 +226,206 @@ public class AdminController {
 
         adminService.updateMeetingStatus(meetingId, request);
         return ResponseEntity.ok("모임 상태가 변경되었습니다.");
+    }
+
+    /**
+     * 문의 목록 조회
+     */
+    @GetMapping("/inquiries")  // 또는 "/inqu_ed"
+    public ResponseEntity<InquiryListResponse> getInquiryList(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String search,
+            HttpSession session) {
+
+        Long adminId = (Long) session.getAttribute("adminId");
+        if (adminId == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        // TODO: Service에서 문의 목록 조회 로직 구현
+        InquiryListResponse response = adminService.getInquiryList(page, size, search);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 문의 상세 조회
+     */
+    @GetMapping("/inquiries/{inquiryId}")
+    public ResponseEntity<InquiryDetailResponse> getInquiryDetail(
+            @PathVariable Long inquiryId,
+            HttpSession session) {
+
+        Long adminId = (Long) session.getAttribute("adminId");
+        if (adminId == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        InquiryDetailResponse response = adminService.getInquiryDetail(inquiryId);
+        return ResponseEntity.ok(response);
+    }
+
+    // ========== 공지사항 관리 ==========
+
+    /**
+     * 공지사항 목록 조회
+     */
+    @GetMapping("/announcements")
+    public ResponseEntity<AnnouncementListResponse> getAnnouncementList(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false, defaultValue = "PUBLISHED") String status,
+            HttpSession session) {
+
+        Long adminId = (Long) session.getAttribute("adminId");
+        if (adminId == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        AnnouncementListResponse response = adminService.getAnnouncementList(page, size, status);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 공지사항 상세 조회
+     */
+    @GetMapping("/announcements/{announcementId}")
+    public ResponseEntity<AnnouncementResponse> getAnnouncementDetail(
+            @PathVariable Long announcementId,
+            HttpSession session) {
+
+        Long adminId = (Long) session.getAttribute("adminId");
+        if (adminId == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        AnnouncementResponse response = adminService.getAnnouncementDetail(announcementId);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 공지사항 생성
+     */
+    @PostMapping("/announcements")
+    public ResponseEntity<AnnouncementResponse> createAnnouncement(
+            @Valid @RequestBody AnnouncementCreateRequest request,
+            HttpSession session) {
+
+        Long adminId = (Long) session.getAttribute("adminId");
+        if (adminId == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        AnnouncementResponse response = adminService.createAnnouncement(request, adminId);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 공지사항 수정
+     */
+    @PutMapping("/announcements/{announcementId}")
+    public ResponseEntity<AnnouncementResponse> updateAnnouncement(
+            @PathVariable Long announcementId,
+            @Valid @RequestBody AnnouncementUpdateRequest request,
+            HttpSession session) {
+
+        Long adminId = (Long) session.getAttribute("adminId");
+        if (adminId == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        AnnouncementResponse response = adminService.updateAnnouncement(announcementId, request);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 공지사항 삭제
+     */
+    @DeleteMapping("/announcements/{announcementId}")
+    public ResponseEntity<String> deleteAnnouncement(
+            @PathVariable Long announcementId,
+            HttpSession session) {
+
+        Long adminId = (Long) session.getAttribute("adminId");
+        if (adminId == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        adminService.deleteAnnouncement(announcementId);
+        return ResponseEntity.ok("공지사항이 삭제되었습니다.");
+    }
+
+    /**
+     * 공지사항 상단 고정 토글
+     */
+    @PatchMapping("/announcements/{announcementId}/pin")
+    public ResponseEntity<String> toggleAnnouncementPin(
+            @PathVariable Long announcementId,
+            HttpSession session) {
+
+        Long adminId = (Long) session.getAttribute("adminId");
+        if (adminId == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        adminService.toggleAnnouncementPin(announcementId);
+        return ResponseEntity.ok("고정 상태가 변경되었습니다.");
+    }
+
+
+// ========== 신고 관리 ==========
+
+    /**
+     * 신고 목록 조회 (페이징)
+     */
+    @GetMapping("/reports/paged")
+    public ResponseEntity<ReportListResponse> getReportsPaged(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String status,
+            HttpSession session) {
+
+        Long adminId = (Long) session.getAttribute("adminId");
+        if (adminId == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        ReportListResponse response = adminService.getReportsPaged(page, size, status);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 신고 상세 조회
+     */
+    @GetMapping("/reports/{reportId}")
+    public ResponseEntity<ReportResponse> getReportDetail(
+            @PathVariable Long reportId,
+            HttpSession session) {
+
+        Long adminId = (Long) session.getAttribute("adminId");
+        if (adminId == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        ReportResponse response = adminService.getReportDetail(reportId);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 신고 상태 업데이트
+     */
+    @PatchMapping("/reports/{reportId}/status")
+    public ResponseEntity<String> updateReportStatus(
+            @PathVariable Long reportId,
+            @RequestBody ReportStatusRequest request,
+            HttpSession session) {
+
+        Long adminId = (Long) session.getAttribute("adminId");
+        if (adminId == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        adminService.updateReportStatus(reportId, request, adminId);
+        return ResponseEntity.ok("신고 상태가 변경되었습니다.");
     }
 }

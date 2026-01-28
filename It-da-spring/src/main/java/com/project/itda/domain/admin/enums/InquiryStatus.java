@@ -5,8 +5,8 @@ package com.project.itda.domain.admin.enums;
  */
 public enum InquiryStatus {
     PENDING("대기중"),
-    IN_PROGRESS("처리중"),
-    COMPLETED("답변완료");
+    ANSWERED("답변완료"),
+    CLOSED("종료");
 
     private final String description;
 

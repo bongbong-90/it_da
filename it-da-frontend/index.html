@@ -2,10 +2,29 @@
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>IT-DA</title>
+    <link rel="icon" href="/favicon.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#4F46E5" />
+    <meta
+      name="description"
+      content="AI 기반 취향 맞춤 모임 추천 서비스 IT-DA"
+    />
+
+    <!-- PWA Manifest (Vite 플러그인이 자동 생성) -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+
+    <!-- Apple Touch Icon -->
+    <link rel="apple-touch-icon" href="/icon-192x192.png" />
+
+    <title>IT-DA - AI 모임 매칭</title>
+
+    <!-- Preconnect for performance -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+    <!-- 카카오 우편번호 -->
     <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
+
     <!-- 카카오 맵 SDK -->
     <script
       type="text/javascript"
@@ -13,6 +32,7 @@
     ></script>
   </head>
   <body>
+    <noscript>IT-DA를 사용하려면 JavaScript를 활성화해주세요.</noscript>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

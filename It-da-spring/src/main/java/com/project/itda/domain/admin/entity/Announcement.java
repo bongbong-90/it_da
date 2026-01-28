@@ -31,8 +31,9 @@ public class Announcement {
     @JoinColumn(name = "author_id", nullable = false)
     private AdminUser author;
 
+
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(nullable = false, length = 50, columnDefinition = "VARCHAR(50)")
     private AnnouncementCategory category;
 
     @Column(nullable = false, length = 200)
@@ -50,8 +51,9 @@ public class Announcement {
     @Column(name = "view_count", nullable = false)
     private Integer viewCount = 0;
 
+
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(nullable = false, length = 50, columnDefinition = "VARCHAR(50)")
     private AnnouncementStatus status = AnnouncementStatus.PUBLISHED;
 
     @Column(name = "published_at")

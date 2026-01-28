@@ -140,12 +140,14 @@ const AdminMeetingManagePage: React.FC = () => {
                         }}
                     >
                         <option value="">전체 카테고리</option>
-                        <option value="운동">운동</option>
+                        <option value="스포츠">스포츠</option>
                         <option value="맛집">맛집</option>
                         <option value="카페">카페</option>
-                        <option value="문화/예술">문화/예술</option>
+                        <option value="문화예술">문화예술</option>
                         <option value="스터디">스터디</option>
-                        <option value="친목">친목</option>
+                        <option value="취미활동">취미활동</option>
+                        <option value="소셜">소셜</option>
+
                     </select>
                     <select
                         value={status}

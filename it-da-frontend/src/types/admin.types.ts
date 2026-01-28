@@ -134,3 +134,128 @@ export interface MeetingManageResponse {
 export interface MeetingStatusRequest {
     status: 'ACTIVE' | 'COMPLETED' | 'CANCELLED' | 'DELETED';
 }
+
+// ========== 신고 관리 관련 타입 ==========
+
+export type ReportStatus = 'PENDING' | 'REVIEWING' | 'RESOLVED' | 'REJECTED';
+export type ReportedType = 'USER' | 'MEETING';
+
+export interface ReportResponse {
+    reportId: number;
+    reporterId: number;
+    reportedType: ReportedType;
+    reportedId: number;
+    reason: string;
+    description: string;
+    status: ReportStatus;
+    adminNote: string | null;
+    resolvedById: number | null;
+    resolvedByName: string | null;
+    createdAt: string;
+    resolvedAt: string | null;
+}
+
+export interface ReportListResponse {
+    content: ReportResponse[];
+    totalElements: number;
+    totalPages: number;
+    number: number;
+    size: number;
+}
+
+export interface ReportStatusRequest {
+    status: ReportStatus;
+    adminNote: string;
+}
+
+// ========== 1:1 문의 관리 관련 타입 ==========
+
+export type InquiryStatus = 'PENDING' | 'ANSWERED' | 'CLOSED';
+export type InquiryCategory = 'ACCOUNT' | 'MEETING' | 'PAYMENT' | 'BUG' | 'SUGGESTION' | 'ETC';
+
+export interface InquiryResponse {
+    inquiryId: number;
+    userId: number;
+    username: string;
+    email: string;
+    category: InquiryCategory;
+    title: string;
+    content: string;
+    status: InquiryStatus;
+    answer: string | null;
+    answeredById: number | null;
+    answeredByName: string | null;
+    answeredAt: string | null;
+    createdAt: string;
+}
+
+export interface InquiryListResponse {
+    content: InquiryResponse[];
+    totalElements: number;
+    totalPages: number;
+    number: number;
+    size: number;
+}
+
+export interface InquiryAnswerRequest {
+    status?: string;   // "PENDING" | "ANSWERED" | "CLOSED"
+    answer?: string;   // 답변 내용
+}
+
+// ========== 공지사항 관련 타입 ==========
+
+export type NoticeCategory =
+    | 'NOTICE'
+    | 'EVENT'
+    | 'UPDATE'
+    | 'MAINTENANCE'
+    | 'GUIDE';
+
+export type NoticeStatus =
+    | 'DRAFT'
+    | 'PUBLISHED'
+    | 'HIDDEN';
+
+export interface NoticeResponse {
+    announcementId: number;
+    authorId: number;
+    authorName: string;
+    category: NoticeCategory;
+    title: string;
+    content: string;
+    isPinned: boolean;
+    isImportant: boolean;
+    viewCount: number;
+    status: NoticeStatus;
+    publishedAt: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface NoticeListResponse {
+    content: NoticeResponse[];
+    currentPage: number;
+    totalPages: number;
+    totalElements: number;
+}
+
+export interface NoticeCreateRequest {
+    category: NoticeCategory;
+    title: string;
+    content: string;
+    isPinned?: boolean;
+    isImportant?: boolean;
+    status: NoticeStatus;
+    publishedAt?: string;
+}
+
+export interface NoticeUpdateRequest {
+    category: NoticeCategory;
+    title: string;
+    content: string;
+    isPinned?: boolean;
+    isImportant?: boolean;
+    status: NoticeStatus;
+    publishedAt?: string;
+}
+

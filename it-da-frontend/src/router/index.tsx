@@ -29,18 +29,27 @@ import ChatRoomSuccess from "@/pages/chat/ChatRoomSuccess.tsx";
 import ChatRoomListPage from "@/pages/chat/ChatRoomListPage.tsx";
 import AdminMeetingDetailPage from "@/pages/admin/AdminMeetingDetailPage";
 
-// 👇 관리자 페이지 import 추가
+//  관리자 페이지 import 추가
 import AdminLayout from "@/pages/admin/AdminLayout";
 import AdminDashboardPage from "@/pages/admin/AdminDashboardPage";
 import UserManagePage from "@/pages/admin/UserManagePage";
 import AdminMeetingManagePage from "@/pages/admin/AdminMeetingManagePage";
 import ReportManagePage from "@/pages/admin/ReportManagePage";
-import NoticeManagePage from "@/pages/admin/NoticeManagePage";
-import SettingsPage from "@/pages/admin/SettingsPage";
-import InquiryManagePage from "@/pages/admin/InquiryManagePage.tsx";
 import AdminUserDetailPage from "@/pages/admin/AdminUserDetailPage";
 import MyBadgesPage from "@/pages/mypage/MyBadgesPage";
 import BadgeCatalogPage from "@/pages/badge/BadgeCatalogPage";
+import ReportDetailPage from "@/pages/admin/ReportDetailPage";
+import InquiryManagePage from "@/pages/admin/InquiryManagePage";
+import InquiryDetailPage from "@/pages/admin/InquiryDetailPage";
+
+// 관리자용 공지사항 페이지
+import AdminNoticeManagePage from "@/pages/admin/NoticeManagePage";
+import AdminNoticeDetailPage from "@/pages/admin/NoticeDetailPage";
+import AdminNoticeFormPage from "@/pages/admin/NoticeFormPage";
+
+// 일반 사용자용 공지사항 페이지
+import NoticeListPage from "@/pages/notice/NoticeListPage";
+import NoticeDetailPage from "@/pages/notice/NoticeDetailPage";
 
 export const router = createBrowserRouter(
   [
@@ -80,10 +89,6 @@ export const router = createBrowserRouter(
       path: "/meetings",
       element: <MeetingListPage />,
     },
-    // {
-    //     path: "/meeting/:id",
-    //     element: <MeetingDetailPage />,
-    // },
     {
       path: "/signup",
       element: (
@@ -147,7 +152,7 @@ export const router = createBrowserRouter(
       ),
     },
     {
-      path: "/social/chat/success", // CreateChatRoom에서 이동하는 경로와 일치
+      path: "/social/chat/success",
       element: (
         <ProtectedRoute>
           <ChatRoomSuccess />
@@ -206,7 +211,15 @@ export const router = createBrowserRouter(
       path: "/badges",
       element: <BadgeCatalogPage />,
     },
-    // 👇 관리자 라우트 추가
+    {
+      path: "/notices",
+      element: <NoticeListPage />,
+    },
+    {
+      path: "/notices/:noticeId",
+      element: <NoticeDetailPage />,
+    },
+    // 👇 관리자 라우트
     {
       path: "/admin",
       element: <AdminLayout />,
@@ -236,25 +249,40 @@ export const router = createBrowserRouter(
           element: <ReportManagePage />,
         },
         {
+          path: "reports/:reportId",
+          element: <ReportDetailPage />,
+        },
+        {
           path: "inquiries",
           element: <InquiryManagePage />,
         },
         {
-          path: "notices",
-          element: <NoticeManagePage />,
+          path: "inquiries/:inquiryId",
+          element: <InquiryDetailPage />,
         },
         {
-          path: "settings",
-          element: <SettingsPage />,
+          path: "notices",
+          element: <AdminNoticeManagePage />,
+        },
+        {
+          path: "notices/create",
+          element: <AdminNoticeFormPage />,
+        },
+        {
+          path: "notices/:noticeId",
+          element: <AdminNoticeDetailPage />,
+        },
+        {
+          path: "notices/:noticeId/edit",
+          element: <AdminNoticeFormPage />,
         },
       ],
     },
   ],
-
   {
     future: {
       v7_startTransition: true,
       v7_relativeSplatPath: true,
     },
-  } as Parameters<typeof createBrowserRouter>[1],
+  },
 );

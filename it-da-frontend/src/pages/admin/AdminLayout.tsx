@@ -45,7 +45,6 @@ const AdminLayout: React.FC = () => {
         { id: 'reports', name: '신고 관리', icon: '⚠️', path: '/admin/reports' },
         { id: 'inquiries', name: '1:1 문의', icon: '💬', path: '/admin/inquiries' },
         { id: 'notices', name: '공지사항', icon: '📢', path: '/admin/notices' },
-        { id: 'settings', name: '시스템 설정', icon: '⚙️', path: '/admin/settings' },
     ];
 
     if (loading) {
@@ -77,24 +76,22 @@ const AdminLayout: React.FC = () => {
                     justifyContent: 'space-between',
                     padding: '1rem 1.5rem'
                 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                        <button
-                            onClick={() => setSidebarOpen(!sidebarOpen)}
-                            style={{
-                                padding: '0.5rem',
-                                background: 'transparent',
-                                border: 'none',
-                                cursor: 'pointer',
-                                fontSize: '1.5rem',
-                                display: window.innerWidth < 1024 ? 'block' : 'none'
-                            }}
-                        >
-                            {sidebarOpen ? '✕' : '☰'}
-                        </button>
-                        <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#2563eb' }}>
+                    <div
+                        onClick={() => navigate('/admin/dashboard')}  // ✅ 클릭 이벤트 추가
+                        style={{
+                            padding: '1.5rem',
+                            borderBottom: '1px solid #e5e7eb',
+                            cursor: 'pointer',  // ✅ 커서 추가
+                            transition: 'background-color 0.2s'  // ✅ 호버 효과
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f9fafb'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'white'}
+                    >
+                        <h1 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#3b82f6' }}>
                             IT-DA 관리자
                         </h1>
                     </div>
+
                     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                         <span style={{ fontSize: '0.875rem', color: '#4b5563' }}>{adminName}님</span>
                         <button
