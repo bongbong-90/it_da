@@ -3,13 +3,12 @@
 .home-page {
   min-height: 100vh;
   background: #f8f9fa;
-  padding-top: 0; /* ✅ 헤더가 sticky라 패딩 불필요 */
 }
 
 .main-container {
-  max-width: 1400px; /* ✅ 헤더와 동일한 max-width */
+  max-width: 1400px;
   margin: 0 auto;
-  padding: 2rem 32px; /* ✅ 좌우 패딩을 헤더와 맞춤 */
+  padding: 2rem;
 }
 
 /* ========================================
@@ -299,10 +298,9 @@
 /* ======================================== */
 
 /* 반응형 */
-/* 반응형 - 헤더와 일치하도록 */
-@media (max-width: 1400px) {
+@media (max-width: 1200px) {
   .main-container {
-    padding: 2rem 24px;
+    padding: 1.5rem;
   }
 
   .ai-card-image-container {
@@ -316,7 +314,7 @@
 
 @media (max-width: 768px) {
   .main-container {
-    padding: 1.5rem 16px;
+    padding: 1rem;
   }
 
   .section-title {
@@ -345,8 +343,10 @@
 }
 
 @media (max-width: 480px) {
-  .main-container {
-    padding: 1rem 16px;
+  .section-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
   }
 
   .ai-card-image-container {

@@ -1,4 +1,6 @@
-/* src/index.css */
+/* ===========================
+   ITDA 글로벌 스타일
+   =========================== */
 
 :root {
   font-family:
@@ -26,13 +28,6 @@
   box-sizing: border-box;
 }
 
-/* ✅ 헤더는 리셋에서 제외 */
-header,
-header * {
-  margin: revert;
-  padding: revert;
-}
-
 html,
 body {
   width: 100%;
@@ -46,6 +41,8 @@ body {
   min-height: 100vh;
   background: #fafbfc;
   color: #1a1a1a;
+
+  /* ✅ flex 제거 - 일반 블록 레이아웃 */
   display: block;
 }
 
