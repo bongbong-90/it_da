@@ -487,21 +487,6 @@ const ChatRoomPage: React.FC = () => {
           content: newMsg.content?.substring(0, 20),
         });
 
-        // ✅ messageId 필수 체크
-        if (!newMsg.messageId) {
-          console.error("❌ messageId 없음, 무시");
-          return;
-        }
-
-        // ✅ 빈 메시지 체크 (IMAGE, POLL도 포함)
-        if (
-          !newMsg.content?.trim() &&
-          !["IMAGE", "POLL", "BILL", "LOCATION", "VOTE"].includes(newMsg.type) // ✅ VOTE 추가
-        ) {
-          console.warn("⚠️ 빈 메시지 무시");
-          return;
-        }
-
         if (newMsg.type === "READ") {
           console.log("📖 읽음 신호 수신:", newMsg);
           if (currentUser && newMsg.email !== currentUser.email) {
@@ -531,6 +516,19 @@ const ChatRoomPage: React.FC = () => {
           });
           return;
         }
+              if (!newMsg.messageId) {
+              console.error("❌ messageId 없음, 무시");
+              return;
+          }
+
+          // ✅ 빈 메시지 체크 (IMAGE, POLL도 포함)
+          if (
+              !newMsg.content?.trim() &&
+              !["IMAGE", "POLL", "BILL", "LOCATION", "VOTE","VOTE_UPDATE"].includes(newMsg.type) // ✅ VOTE 추가
+          ) {
+              console.warn("⚠️ 빈 메시지 무시");
+              return;
+          }
 
         if (newMsg.type === "NOTICE") {
           setTimeout(() => {
