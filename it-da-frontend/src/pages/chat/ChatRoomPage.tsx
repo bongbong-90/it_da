@@ -415,7 +415,6 @@ const ChatRoomPage: React.FC = () => {
             setRoomTitle(currentRoom.roomName);
             setNotice(currentRoom.notice || "");
 
-            // ✅ 서버 응답 필드명이 meetingId인지, 혹은 객체 형태인지 확인하여 할당
             const mId = currentRoom.meetingId || currentRoom.meeting?.id;
             if (mId) {
               setLinkedMeetingId(Number(mId));
@@ -470,9 +469,7 @@ const ChatRoomPage: React.FC = () => {
     let isSubscribed = true;
 
     if (roomId && currentUser?.email) {
-      // ✅ 연결 전에 기존 연결 완전히 정리
       chatApi.disconnect();
-
       console.log("🔄 WebSocket 연결 시작...");
 
       chatApi.connect(Number(roomId), currentUser.email, (newMsg: any) => {
@@ -483,21 +480,35 @@ const ChatRoomPage: React.FC = () => {
 
         console.log("📨 수신:", {
           messageId: newMsg.messageId,
-          type: newMsg.type, // ✅ 타입도 로그에 추가
-          content: newMsg.content?.substring(0, 20),
+          type: newMsg.type,
+          email: newMsg.email,
+          unreadCount: newMsg.unreadCount,
         });
 
+        // ✅ READ 신호 처리 (최우선)
         if (newMsg.type === "READ") {
           console.log("📖 읽음 신호 수신:", newMsg);
-          if (currentUser && newMsg.email !== currentUser.email) {
+
+          if (currentUser && newMsg.email === currentUser.email) {
+            console.log("✅ 내가 읽음 - 모든 메시지 unreadCount = 0");
+            markAllAsRead();
+          } else {
+            console.log("🔽 다른 사용자가 읽음 - unreadCount 감소");
             decrementUnreadCount();
-            const currentMessages = useChatStore.getState().messages;
-            const updatedMessages = currentMessages.map((msg) => ({
-              ...msg,
-              unreadCount: msg.unreadCount > 0 ? msg.unreadCount - 1 : 0,
-            }));
-            setMessages(updatedMessages);
           }
+          return;
+        }
+
+        if (!newMsg.messageId) {
+          console.error("❌ messageId 없음, 무시");
+          return;
+        }
+
+        if (
+          !newMsg.content?.trim() &&
+          !["IMAGE", "POLL", "BILL", "LOCATION", "VOTE"].includes(newMsg.type)
+        ) {
+          console.warn("⚠️ 빈 메시지 무시");
           return;
         }
 
@@ -516,19 +527,6 @@ const ChatRoomPage: React.FC = () => {
           });
           return;
         }
-              if (!newMsg.messageId) {
-              console.error("❌ messageId 없음, 무시");
-              return;
-          }
-
-          // ✅ 빈 메시지 체크 (IMAGE, POLL도 포함)
-          if (
-              !newMsg.content?.trim() &&
-              !["IMAGE", "POLL", "BILL", "LOCATION", "VOTE","VOTE_UPDATE"].includes(newMsg.type) // ✅ VOTE 추가
-          ) {
-              console.warn("⚠️ 빈 메시지 무시");
-              return;
-          }
 
         if (newMsg.type === "NOTICE") {
           setTimeout(() => {
@@ -536,27 +534,36 @@ const ChatRoomPage: React.FC = () => {
           }, 500);
         }
 
-        // ✅ 읽음 처리 대상에 POLL 추가
-        if (
-          newMsg.type === "TALK" ||
-          newMsg.type === "IMAGE" ||
-          newMsg.type === "LOCATION" ||
-          newMsg.type === "POLL" || // ✅ 추가!
-          newMsg.type === "VOTE"
-        ) {
-          if (
-            currentUser &&
-            Number(newMsg.senderId) !== Number(currentUser.userId)
-          ) {
-            chatApi.markAsRead(Number(roomId));
-          }
-        }
+        // ✅ unreadCount는 서버가 계산한 값을 그대로 사용
+        const finalUnreadCount = Number(newMsg.unreadCount ?? 0);
 
-        const serverCount = Number(newMsg.unreadCount ?? 0);
+        console.log("📊 서버 계산 unreadCount:", finalUnreadCount);
+
+        // ✅ 다른 사람이 보낸 메시지일 때만 자동 읽음 처리
+        if (currentUser && newMsg.email !== currentUser.email) {
+          console.log("📩 다른 사람의 메시지 - 자동 읽음 처리");
+
+          // 자동 읽음 처리
+          if (
+            newMsg.type === "TALK" ||
+            newMsg.type === "TEXT" ||
+            newMsg.type === "IMAGE" ||
+            newMsg.type === "LOCATION" ||
+            newMsg.type === "POLL" ||
+            newMsg.type === "VOTE"
+          ) {
+            if (currentUser && newMsg.email !== currentUser.email) {
+              chatApi.markAsRead(Number(roomId));
+            }
+            console.log("✅ READ 신호 전송 (타인의 메시지 수신)");
+          }
+        } else if (currentUser && newMsg.email === currentUser.email) {
+          console.log("✅ 내가 보낸 메시지 - 읽음 처리 안 함");
+        }
 
         const validatedMsg: ChatMessage = {
           ...newMsg,
-          unreadCount: serverCount,
+          unreadCount: finalUnreadCount,
           senderNickname: newMsg.senderNickname || "사용자",
           sentAt: newMsg.sentAt || new Date().toISOString(),
           senderId: Number(newMsg.senderId),
@@ -571,16 +578,19 @@ const ChatRoomPage: React.FC = () => {
           "✅ 메시지 추가:",
           validatedMsg.messageId,
           validatedMsg.type,
-        ); // ✅ 로그 추가
+          "unreadCount:",
+          validatedMsg.unreadCount,
+        );
         addMessage(validatedMsg);
       });
     }
+
     return () => {
       console.log("🧹 컴포넌트 정리 시작");
       isSubscribed = false;
       chatApi.disconnect();
     };
-  }, [roomId, currentUser]); // ✅ 의존성 배열 최소화
+  }, [roomId, currentUser]);
 
   const fetchRoomMembers = async () => {
     if (!roomId) return;
@@ -632,6 +642,7 @@ const ChatRoomPage: React.FC = () => {
       toast.error("로그인 세션이 만료되었습니다.");
       return;
     }
+
     chatApi.sendMessage(
       Number(roomId),
       currentUser.email,
@@ -641,9 +652,13 @@ const ChatRoomPage: React.FC = () => {
       {},
     );
 
+    // ❌ 제거: 불필요한 READ 신호
+    // setTimeout(() => {
+    //     chatApi.markAsRead(Number(roomId));
+    // }, 100);
+
     setInputValue("");
   };
-
   const handleFeatureAction = (feature: string) => {
     if (!roomId || !currentUser?.email) return;
 

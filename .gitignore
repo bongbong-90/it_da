@@ -40,3 +40,4 @@ it-da-ai-server/models/kcelectra_sentiment_with_typo/
 it-da-ai-server/app/models/kcelectra_sentiment_with_typo/
 it-da-ai-server/models(path=it-da,it-da-ai-server,models.zip
 it-da-ai-server/app/models(path=it-da,it-da-ai-server,app,modles.zip
+it-da-ai-server/venv/
