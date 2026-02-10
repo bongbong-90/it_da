@@ -291,16 +291,8 @@ npm run build
 
 ---
 
-## 📄 라이선스
-
-This project is licensed under the MIT License.
-
----
-
 ## 🎯 향후 계획
 
-- [ ] AI 기반 모임 추천 시스템 구현
-- [ ] 실시간 채팅 기능 추가
-- [ ] 모바일 앱 개발
-- [ ] 결제 시스템 통합
+- [ ] AI 기반 모임 추천 시스템 고도화
 - [ ] 알림 기능 강화
+- [ ] UI 고도화
