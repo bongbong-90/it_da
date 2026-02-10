@@ -291,12 +291,6 @@ npm run build
 
 ---
 
-## 📞 문의 및 기여
-
-프로젝트 관련 문의사항이나 버그 리포트는 GitHub Issues를 통해 남겨주세요.
-
----
-
 ## 📄 라이선스
 
 This project is licensed under the MIT License.
